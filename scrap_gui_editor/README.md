@@ -4,6 +4,8 @@ Local-only visual editor for Scrap Mechanic MyGUI `.layout` files.
 
 GitHub: https://github.com/zernon916/ScrappyGUIEditor
 
+**Download and how to use:** see the [repo README](../README.md) (`main` branch). This file is the inspected MyGUI format, feature list, and tests.
+
 This tool does **not** create accounts, cloud storage, telemetry, or online services. It binds to `127.0.0.1` only.
 
 ## Launch
