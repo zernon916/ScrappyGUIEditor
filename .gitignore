@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+*.bak.layout
+Thumbs.db
+.DS_Store
+.venv/
+venv/

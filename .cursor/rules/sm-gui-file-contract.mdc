@@ -1,0 +1,48 @@
+---
+description: Scrap Mechanic custom GUI file contract — layouts, images, and Lua paths
+alwaysApply: true
+---
+
+# SM GUI file contract
+
+The game does **not** scan folders. It loads the exact path Lua (or `ImageTexture`) gives it. These rules are **our** contract so the layout editor and RFS Lua stay in sync.
+
+## Folders (mod root = `$CONTENT_DATA`)
+
+| Kind | Put it here | Do not |
+|---|---|---|
+| Layouts | `Gui/Layouts/<Name>.layout` | `Gui/Layout/`, `Art/`, random nested folders |
+| Menu PNGs | `Gui/Images/` or `Gui/Images/<menu>/` | `Art/` as the runtime path (`Art/` is source only) |
+| Map / HUD PNGs already at `Gui/*.png` | Leave them; do not relocate without updating Lua | Move without a path change |
+
+## Lua must use these path shapes
+
+```lua
+-- layout
+sm.gui.createGuiFromLayout("$CONTENT_DATA/Gui/Layouts/Rfs_Menu.layout", ...)
+
+-- image (preferred; ImageTexture + $CONTENT_DATA is known to blank in some GUIs)
+gui:setImage("BgPanel", "$CONTENT_DATA/Gui/Images/craftstation/panel_wide.png")
+```
+
+- New menus: add `Gui/Layouts/Rfs_<Thing>.layout` **and** a Lua constant pointing at that same path.
+- Do not invent `$GAME_DATA` paths for custom menus. That is vanilla.
+- `$CONTENT_<uuid>/...` only when the file actually lives in that other mod.
+
+## Widget names are a Lua API
+
+- `name="CloseButton"` in the layout is what Lua binds to. Do not rename widgets to "clean up" the XML.
+- New widgets need a `name` before Lua can `setImage` / `setText` / `setVisible` them.
+
+## Layout editor loader
+
+1. Open the **mod directory** (the folder that contains `Gui/`), not a lone `.layout`.
+2. List `Gui/Layouts/*.layout` in a dropdown. User picks the menu after the mod (and its PNGs) are bound.
+3. Resolve `$CONTENT_DATA/...` against that mod root. Resolve `Gui/Images/...` against `Gui/`.
+4. Export back to the same `Gui/Layouts/<Name>.layout` path. Do not scatter copies.
+
+## Images in `.layout` files
+
+- Optional `ImageTexture` is a hint. Many RFS menus assign art in Lua instead.
+- If both exist, Lua `setImage` wins in-game. The editor should still show the layout value plus resolved mod PNGs.
+- Skins (`PrimaryButton`, `BackgroundInteractableWide`, …) are vanilla names, not files in the mod.

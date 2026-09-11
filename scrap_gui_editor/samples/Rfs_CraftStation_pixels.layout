@@ -1,0 +1,745 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MyGUI type="Layout" version="3.2.0">
+	<!-- RFS Crafting Station: CRAFT grid (square cells) + UPGRADE (component kits). -->
+	<Widget type="Widget" skin="PanelEmpty" position_real="0 0 1 1" name="Root">
+		<Property key="NeedKey" value="false"/>
+		<Property key="NeedMouse" value="true"/>
+
+		<Widget type="Widget" skin="BackgroundInteractableWide" position_real="0.18 0.06 0.64 0.88" name="MainPanel">
+			<Widget type="TextBox" skin="TextBox" position_real="0.03 0.010 0.50 0.04" name="Title">
+				<Property key="Caption" value="CRAFTING STATION"/>
+				<Property key="FontName" value="SM_HeaderLarge_Wide"/>
+				<Property key="TextAlign" value="Left VCenter"/>
+			</Widget>
+			<Widget type="Button" skin="PrimaryButton" position_real="0.88 0.010 0.09 0.04" name="CloseButton">
+				<Property key="Caption" value="X"/>
+				<Property key="FontName" value="SM_Button"/>
+			</Widget>
+
+			<Widget type="Button" skin="PrimaryButton" position_real="0.03 0.055 0.16 0.04" name="TabCraft">
+				<Property key="Caption" value="CRAFT"/>
+				<Property key="FontName" value="SM_Button"/>
+			</Widget>
+			<Widget type="Button" skin="SecondaryButton" position_real="0.21 0.055 0.16 0.04" name="TabUpgrade">
+				<Property key="Caption" value="UPGRADE"/>
+				<Property key="FontName" value="SM_Button"/>
+			</Widget>
+
+			<Widget type="Widget" skin="PanelEmpty" position_real="0.02 0.105 0.96 0.875" name="PanelCraft">
+				<Widget type="TextBox" skin="TextBox" position_real="0 0 1 0.035" name="StatusLine">
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Text"/>
+				</Widget>
+				<Widget type="Button" skin="PrimaryButton" position_real="0 0.042 0.155 0.05" name="CatAll">
+					<Property key="Caption" value="ALL"/>
+					<Property key="FontName" value="SM_Button"/>
+				</Widget>
+				<Widget type="Button" skin="SecondaryButton" position_real="0.165 0.042 0.155 0.05" name="CatTool">
+					<Property key="Caption" value="TOOLS"/>
+					<Property key="FontName" value="SM_Button"/>
+				</Widget>
+				<Widget type="Button" skin="SecondaryButton" position_real="0.33 0.042 0.155 0.05" name="CatBlock">
+					<Property key="Caption" value="BLOCKS"/>
+					<Property key="FontName" value="SM_Button"/>
+				</Widget>
+				<Widget type="Button" skin="SecondaryButton" position_real="0.495 0.042 0.155 0.05" name="CatInteractive">
+					<Property key="Caption" value="INTERACTIVE"/>
+					<Property key="FontName" value="SM_Button"/>
+				</Widget>
+				<Widget type="Button" skin="SecondaryButton" position_real="0.66 0.042 0.155 0.05" name="CatPart">
+					<Property key="Caption" value="PARTS"/>
+					<Property key="FontName" value="SM_Button"/>
+				</Widget>
+				<Widget type="Button" skin="SecondaryButton" position_real="0.825 0.042 0.155 0.05" name="CatConsumable">
+					<Property key="Caption" value="CONSUMABLE"/>
+					<Property key="FontName" value="SM_Button"/>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell0">
+					<Property key="Position" value="16 120"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon0">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty0">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell1">
+					<Property key="Position" value="88 120"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon1">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty1">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell2">
+					<Property key="Position" value="160 120"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon2">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty2">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell3">
+					<Property key="Position" value="232 120"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon3">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty3">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell4">
+					<Property key="Position" value="304 120"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon4">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty4">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell5">
+					<Property key="Position" value="376 120"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon5">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty5">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell6">
+					<Property key="Position" value="448 120"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon6">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty6">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell7">
+					<Property key="Position" value="520 120"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon7">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty7">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell8">
+					<Property key="Position" value="592 120"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon8">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty8">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell9">
+					<Property key="Position" value="664 120"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon9">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty9">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell10">
+					<Property key="Position" value="16 192"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon10">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty10">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell11">
+					<Property key="Position" value="88 192"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon11">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty11">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell12">
+					<Property key="Position" value="160 192"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon12">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty12">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell13">
+					<Property key="Position" value="232 192"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon13">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty13">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell14">
+					<Property key="Position" value="304 192"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon14">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty14">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell15">
+					<Property key="Position" value="376 192"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon15">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty15">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell16">
+					<Property key="Position" value="448 192"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon16">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty16">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell17">
+					<Property key="Position" value="520 192"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon17">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty17">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell18">
+					<Property key="Position" value="592 192"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon18">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty18">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell19">
+					<Property key="Position" value="664 192"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon19">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty19">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell20">
+					<Property key="Position" value="16 264"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon20">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty20">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell21">
+					<Property key="Position" value="88 264"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon21">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty21">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell22">
+					<Property key="Position" value="160 264"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon22">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty22">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell23">
+					<Property key="Position" value="232 264"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon23">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty23">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell24">
+					<Property key="Position" value="304 264"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon24">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty24">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell25">
+					<Property key="Position" value="376 264"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon25">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty25">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell26">
+					<Property key="Position" value="448 264"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon26">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty26">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell27">
+					<Property key="Position" value="520 264"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon27">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty27">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell28">
+					<Property key="Position" value="592 264"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon28">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty28">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" name="Cell29">
+					<Property key="Position" value="664 264"/>
+					<Property key="Size" value="64 64"/>
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Button"/>
+					<Widget type="ImageBox" skin="ImageBox" position="6 6" size="52 52" name="Icon29">
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+						<Property key="ImageKeepAspect" value="true"/>
+					</Widget>
+					<Widget type="TextBox" skin="TextBox" position_real="0.00 0.72 1.00 0.26" name="Qty29">
+						<Property key="Caption" value=""/>
+						<Property key="FontName" value="SM_NumberTiny"/>
+						<Property key="TextAlign" value="Center"/>
+						<Property key="NeedMouse" value="false"/>
+						<Property key="NeedKey" value="false"/>
+					</Widget>
+				</Widget>
+
+				<Widget type="Button" skin="SecondaryButton" position_real="0 0.475 0.12 0.05" name="BtnPrev">
+					<Property key="Caption" value="PREV"/>
+					<Property key="FontName" value="SM_Button"/>
+				</Widget>
+				<Widget type="TextBox" skin="TextBox" position_real="0.13 0.475 0.42 0.05" name="PageLabel">
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Text"/>
+					<Property key="TextAlign" value="Center VCenter"/>
+				</Widget>
+				<Widget type="Button" skin="SecondaryButton" position_real="0.56 0.475 0.12 0.05" name="BtnNext">
+					<Property key="Caption" value="NEXT"/>
+					<Property key="FontName" value="SM_Button"/>
+				</Widget>
+				<Widget type="TextBox" skin="TextBox" position_real="0.70 0.475 0.30 0.05" name="CraftInfo">
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Text"/>
+					<Property key="TextAlign" value="Right VCenter"/>
+				</Widget>
+
+				<Widget type="ImageBox" skin="ImageBox" position_real="0.005 0.545 0.0678 0.0962" name="SelectedIcon">
+					<Property key="NeedMouse" value="false"/>
+					<Property key="NeedKey" value="false"/>
+					<Property key="ImageKeepAspect" value="true"/>
+				</Widget>
+				<Widget type="TextBox" skin="TextBox" position_real="0.09 0.545 0.60 0.045" name="SelectedName">
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Text"/>
+				</Widget>
+				<Widget type="TextBox" skin="TextBox" position_real="0.09 0.592 0.75 0.04" name="SelectedDesc">
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Text"/>
+					<Property key="NeedMouse" value="false"/>
+					<Property key="NeedKey" value="false"/>
+				</Widget>
+				<Widget type="ImageBox" skin="ImageBox" position_real="0.09 0.645 0.0509 0.0722" name="IngIcon0">
+					<Property key="NeedMouse" value="false"/>
+					<Property key="NeedKey" value="false"/>
+					<Property key="ImageKeepAspect" value="true"/></Widget>
+				<Widget type="TextBox" skin="TextBox" position_real="0.15 0.65 0.60 0.05" name="IngText0">
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Text"/>
+					<Property key="NeedMouse" value="false"/>
+					<Property key="NeedKey" value="false"/>
+				</Widget>
+				<Widget type="ImageBox" skin="ImageBox" position_real="0.09 0.695 0.0509 0.0722" name="IngIcon1">
+					<Property key="NeedMouse" value="false"/>
+					<Property key="NeedKey" value="false"/>
+					<Property key="ImageKeepAspect" value="true"/>
+				</Widget>
+				<Widget type="TextBox" skin="TextBox" position_real="0.15 0.7 0.60 0.05" name="IngText1">
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Text"/>
+					<Property key="NeedMouse" value="false"/>
+					<Property key="NeedKey" value="false"/>
+				</Widget>
+				<Widget type="ImageBox" skin="ImageBox" position_real="0.09 0.745 0.0509 0.0722" name="IngIcon2">
+					<Property key="NeedMouse" value="false"/>
+					<Property key="NeedKey" value="false"/>
+					<Property key="ImageKeepAspect" value="true"/>
+				</Widget>
+				<Widget type="TextBox" skin="TextBox" position_real="0.15 0.75 0.60 0.05" name="IngText2">
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Text"/>
+					<Property key="NeedMouse" value="false"/>
+					<Property key="NeedKey" value="false"/>
+				</Widget>
+				<Widget type="TextBox" skin="TextBox" position_real="0.09 0.81 0.15 0.05" name="QtyLabel">
+					<Property key="Caption" value="x1"/>
+					<Property key="FontName" value="SM_Text"/>
+					<Property key="TextAlign" value="Center VCenter"/>
+				</Widget>
+				<Widget type="Button" skin="SecondaryButton" position_real="0.25 0.81 0.08 0.05" name="BtnMinus">
+					<Property key="Caption" value="-"/>
+					<Property key="FontName" value="SM_Button"/>
+				</Widget>
+				<Widget type="Button" skin="SecondaryButton" position_real="0.34 0.81 0.08 0.05" name="BtnPlus">
+					<Property key="Caption" value="+"/>
+					<Property key="FontName" value="SM_Button"/>
+				</Widget>
+				<Widget type="Button" skin="PrimaryButton" position_real="0.44 0.81 0.25 0.05" name="BtnCraft">
+					<Property key="Caption" value="CRAFT"/>
+					<Property key="FontName" value="SM_Button"/>
+				</Widget>
+				<Widget type="TextBox" skin="TextBox" position_real="0 0.875 1 0.125" name="QueueList">
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Text"/>
+				</Widget>
+			</Widget>
+
+			<Widget type="Widget" skin="PanelEmpty" position_real="0.02 0.105 0.96 0.875" name="PanelUpgrade">
+				<Widget type="TextBox" skin="TextBox" position_real="0.03 0.05 0.94 0.05" name="TierTitle">
+					<Property key="Caption" value="TIER 1 / 5"/>
+					<Property key="FontName" value="SM_HeaderLarge_Wide"/>
+				</Widget>
+				<Widget type="TextBox" skin="TextBox" position_real="0.03 0.13 0.94 0.045" name="StatsLabel">
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Text"/>
+				</Widget>
+				<Widget type="TextBox" skin="TextBox" position_real="0.03 0.19 0.94 0.045" name="KitsLabel">
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Text"/>
+				</Widget>
+				<Widget type="Button" skin="PrimaryButton" position_real="0.30 0.26 0.40 0.06" name="BtnUpgrade">
+					<Property key="Caption" value="UPGRADE"/>
+					<Property key="FontName" value="SM_Button"/>
+				</Widget>
+				<Widget type="TextBox" skin="TextBox" position_real="0.03 0.34 0.94 0.04" name="UpgradeHint">
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Text"/>
+				</Widget>
+				<Widget type="TextBox" skin="TextBox" position_real="0.03 0.42 0.94 0.20" name="PerksLabel">
+					<Property key="Caption" value=""/>
+					<Property key="FontName" value="SM_Text"/>
+				</Widget>
+			</Widget>
+		</Widget>
+	</Widget>
+</MyGUI>
