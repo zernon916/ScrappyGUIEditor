@@ -15,6 +15,7 @@ import { Selection, hitTestAll, boundingBox, renderSelectionOverlay, resizeBox, 
 import { createMenuController, widgetMenuItems, canvasMenuItems, hierarchyMenuItems, menuBarSpec } from "./menus.js";
 import { detectTabIds, isOnInactiveTab, tabIdFromButton, tabOwner, tabOwnerLabel, tabLabel, parseTabMap } from "./tabs.js";
 import { parseGroups, serializeGroups, uniqueGroupId, matchingGroupId, renameGroupMember } from "./groups.js";
+import { host } from "./host.js";
 
 const GITHUB_REPO = "https://github.com/zernon916/ScrappyGUIEditor";
 
@@ -80,6 +81,7 @@ const state = {
   autosaveMinutes: 5,
   autosaveKeep: 4,
   autosaveTimer: null,
+  autoUpdate: true,
   diskXml: "",
   lastAutosaveXml: "",
 };
@@ -109,6 +111,7 @@ function init() {
   refreshCanvasChrome();
   refreshMenubar();
   void restoreLastSession();
+  bindUpdater();
 }
 
 function cacheEls() {
@@ -511,8 +514,7 @@ async function pickModFolder() {
   const start = els["mod-path"].value.trim() || localStorage.getItem("smLayoutEditor.modPath") || "";
   setStatus("Choose the mod folder in the Windows dialog (the folder that contains Gui)…");
   try {
-    const res = await fetch("/api/pick-mod?start=" + encodeURIComponent(start));
-    const data = await res.json();
+    const data = await host.pickMod(start);
     if (!data.ok) {
       showErrors([data.error || "Folder picker failed."]);
       return;
@@ -548,8 +550,7 @@ async function openMod(path, keepLayout = false) {
     return;
   }
   try {
-    const res = await fetch("/api/mod?path=" + encodeURIComponent(path));
-    const data = await res.json();
+    const data = await host.openMod(path);
     if (!data.ok) {
       showErrors([data.error || "Could not open that mod folder."]);
       setStatus(data.error || "Mod open failed.");
@@ -603,10 +604,7 @@ async function pickCustomFolder(kind) {
       : "Select menu images folder (default is Gui/Menu/Images)";
   setStatus("Choose a folder in the Windows dialog…");
   try {
-    const res = await fetch(
-      "/api/pick-folder?start=" + encodeURIComponent(start) + "&title=" + encodeURIComponent(title)
-    );
-    const data = await res.json();
+    const data = await host.pickFolder(start, title);
     if (!data.ok) {
       showErrors([data.error || "Folder picker failed."]);
       return;
@@ -623,8 +621,7 @@ async function pickCustomFolder(kind) {
 }
 
 async function applyLayoutsFolder(path) {
-  const res = await fetch("/api/layouts?path=" + encodeURIComponent(path));
-  const data = await res.json();
+  const data = await host.listLayouts(path);
   if (!data.ok) {
     showErrors([data.error || "Could not list layouts in that folder."]);
     return;
@@ -638,8 +635,7 @@ async function applyLayoutsFolder(path) {
 }
 
 async function applyImagesFolder(path) {
-  const res = await fetch("/api/list?path=" + encodeURIComponent(path));
-  const data = await res.json();
+  const data = await host.listPngs(path);
   if (!data.ok) {
     showErrors([data.error || "Could not list PNGs in that folder."]);
     return;
@@ -690,13 +686,12 @@ async function onLayoutPicked() {
 async function loadLayoutFromMod(path) {
   const meta = state.layouts.find((l) => l.path === path);
   try {
-    const res = await fetch("/api/file?path=" + encodeURIComponent(path) + "&t=" + Date.now());
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: res.statusText }));
-      showErrors([err.error || "Could not read layout file."]);
+    const data = await host.readText(path);
+    if (!data.ok) {
+      showErrors([data.error || "Could not read layout file."]);
       return;
     }
-    const text = await res.text();
+    const text = data.text;
     openXml(text, meta ? meta.name : path.split(/[/\\]/).pop(), path);
     state.diskXml = text;
     state.lastAutosaveXml = "";
@@ -1735,8 +1730,7 @@ async function setAssetPath(path) {
   if (!path) return;
   state.assetPath = path;
   try {
-    const res = await fetch("/api/list?path=" + encodeURIComponent(path));
-    const data = await res.json();
+    const data = await host.listPngs(path);
     if (!data.ok) {
       warn(data.error || "Could not list asset folder.");
       return;
@@ -1789,7 +1783,7 @@ async function loadTexture(tex) {
     for (const c of imageCandidates(tex)) {
       const hit = state.assetList.find((x) => x.rel.replace(/\\/g, "/") === c || x.rel.endsWith("/" + c) || x.name === c.split("/").pop());
       if (hit) {
-        const url = "/api/file?path=" + encodeURIComponent(hit.path) + "&t=" + Date.now();
+        const url = await host.fileUrl(hit.path);
         const dim = await probeImage(url);
         return { url, width: dim.w, height: dim.h, filename: hit.name, path: hit.path };
       }
@@ -1952,12 +1946,7 @@ async function confirmSave() {
     return;
   }
   try {
-    const res = await fetch("/api/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: state.filePath, content: xml, backup: state.saveWithBackup }),
-    });
-    const data = await res.json();
+    const data = await host.saveFile(state.filePath, xml, state.saveWithBackup);
     if (!data.ok) throw new Error(data.error || "Save failed");
     const backupNote = state.saveWithBackup
       ? ` Backup: ${data.backup || "(none, new file)"}`
@@ -1976,6 +1965,24 @@ async function confirmSave() {
 
 async function saveAs(xml) {
   const name = state.fileName || "edited.layout";
+  if (host.isElectron) {
+    const suggested = isDiskLayout()
+      ? state.filePath.replace(/\.layout$/i, "") + ".edited.layout"
+      : name.replace(/\.layout$/i, "") + ".edited.layout";
+    const pick = await host.pickSave(suggested);
+    if (!pick.ok) {
+      setStatus("Save As failed. " + (pick.error || ""));
+      return;
+    }
+    if (pick.cancelled || !pick.path) return;
+    const data = await host.saveFile(pick.path, xml, false);
+    if (!data.ok) {
+      setStatus("Save As failed. " + (data.error || ""));
+      return;
+    }
+    setStatus("Saved as " + pick.path + " (original layout was not overwritten).");
+    return;
+  }
   if (window.showSaveFilePicker) {
     try {
       const handle = await window.showSaveFilePicker({
@@ -2059,9 +2066,9 @@ async function loadTabMapping() {
   if (!p || p.indexOf("<") !== -1) return;
   const mapPath = p + ".tabs.json";
   try {
-    const res = await fetch("/api/file?path=" + encodeURIComponent(mapPath) + "&t=" + Date.now());
-    if (!res.ok) return;
-    const text = await res.text();
+    const data = await host.readText(mapPath);
+    if (!data.ok) return;
+    const text = data.text;
     if (state.filePath !== p) return;
     const map = parseTabMap(text);
     if (!map) {
@@ -2203,9 +2210,9 @@ async function loadGroupMapping() {
   if (!p || p.indexOf("<") !== -1) return;
   if (isDiskLayout()) {
     try {
-      const res = await fetch("/api/file?path=" + encodeURIComponent(p + ".groups.json") + "&t=" + Date.now());
-      if (res.ok) {
-        const parsed = parseGroups(await res.text());
+      const data = await host.readText(p + ".groups.json");
+      if (data.ok) {
+        const parsed = parseGroups(data.text);
         if (state.filePath !== p) return;
         if (parsed) {
           state.groups = parsed.groups;
@@ -2295,15 +2302,9 @@ function persistGroups() {
   }
   const path = groupsSidecarPath();
   if (!path) return;
-  fetch("/api/save", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path, content: xml, backup: false }),
-  })
-    .then((res) => {
-      if (!res.ok) setStatus("Could not write groups sidecar (layout save is unchanged).");
-    })
-    .catch(() => setStatus("Could not write groups sidecar (layout save is unchanged)."));
+  host.saveFile(path, xml, false).then((data) => {
+    if (!data.ok) setStatus("Could not write groups sidecar (layout save is unchanged).");
+  }).catch(() => setStatus("Could not write groups sidecar (layout save is unchanged)."));
 }
 
 function maybeSwitchLayoutTab(w) {
@@ -2465,6 +2466,7 @@ function loadPrefs() {
       if (modal) modal.checked = prefs.saveWithBackup;
     }
     if (typeof prefs.restoreSession === "boolean") state.restoreSession = prefs.restoreSession;
+    if (typeof prefs.autoUpdate === "boolean") state.autoUpdate = prefs.autoUpdate;
     if (Number.isFinite(prefs.autosaveMinutes)) state.autosaveMinutes = Math.max(0, Math.min(60, prefs.autosaveMinutes));
     if (Number.isFinite(prefs.autosaveKeep)) state.autosaveKeep = Math.max(1, Math.min(10, prefs.autosaveKeep));
     if (prefs.previewRes) {
@@ -2556,14 +2558,7 @@ async function runAutosave() {
   const xml = exportLayoutXml(state.parsed.document);
   if (!xml || xml === state.diskXml || xml === state.lastAutosaveXml) return;
   try {
-    const res = await fetch("/api/autosave", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: state.filePath, content: xml, keep: state.autosaveKeep }),
-    });
-    const text = await res.text();
-    if (/^\s*</.test(text)) return;
-    const data = JSON.parse(text);
+    const data = await host.autosave(state.filePath, xml, state.autosaveKeep);
     if (!data.ok) throw new Error(data.error || "Autosave failed");
     state.lastAutosaveXml = xml;
     setStatus("Autosaved " + (data.path || "").split(/[/\\]/).pop());
@@ -2585,10 +2580,7 @@ async function pollDiskWatch(force = false) {
   const images = state.imagesDir || "";
   if (!layout && !images) return;
   try {
-    const res = await fetch(
-      "/api/watch?layout=" + encodeURIComponent(layout) + "&images=" + encodeURIComponent(images)
-    );
-    const data = await res.json();
+    const data = await host.watch(layout, images);
     if (!data.ok) return;
     if (force || !state.watch.ready) {
       rememberWatchStamp(data);
@@ -3033,12 +3025,7 @@ async function revealPath(path) {
     return;
   }
   try {
-    const res = await fetch("/api/reveal?path=" + encodeURIComponent(path));
-    const text = await res.text();
-    if (/^\s*</.test(text)) {
-      throw new Error("Open http://127.0.0.1:8765 from start_editor.bat (this tab is not that server).");
-    }
-    const data = JSON.parse(text);
+    const data = await host.reveal(path);
     if (!data.ok) throw new Error(data.error || "Reveal failed");
     setStatus("Opened Explorer at " + path);
   } catch (err) {
@@ -3076,6 +3063,9 @@ async function runCommand(cmd, arg) {
       break;
     case "restoreAutosave":
       await restoreAutosaveDialog();
+      break;
+    case "checkUpdates":
+      await checkForUpdatesNow();
       break;
     case "reloadAssets":
       await reloadAssets();
@@ -3412,16 +3402,23 @@ async function runCommand(cmd, arg) {
     case "helpGithub":
       window.open(GITHUB_REPO, "_blank");
       break;
-    case "helpAbout":
+    case "helpAbout": {
+      const info = await host.appInfo().catch(() => ({ ok: false }));
+      const ver = info && info.version ? " v" + info.version : "";
+      const how = host.isElectron
+        ? "This is the desktop app. Edit → Preferences can turn GitHub update checks off. Updates never write into your mod folder."
+        : "This is the .bat / Python build. The helper server binds to <code>127.0.0.1</code> only.";
       openDialog({
         title: "About Scrappy",
         narrow: true,
-        html: `<p><strong>Scrappy GUI Editor</strong> is a local-only visual editor for Scrap Mechanic MyGUI <code>.layout</code> files.</p>
-          <p>No accounts, cloud, or telemetry. The helper server binds to <code>127.0.0.1</code> only.</p>
+        html: `<p><strong>Scrappy GUI Editor${ver}</strong> is a local-only visual editor for Scrap Mechanic MyGUI <code>.layout</code> files.</p>
+          <p>${how}</p>
+          <p>No accounts, cloud, or telemetry.</p>
           <p><a href="${GITHUB_REPO}" target="_blank" rel="noopener">${GITHUB_REPO}</a></p>`,
         actions: [{ label: "Close", primary: true }],
       });
       break;
+    }
     default:
       break;
   }
@@ -3436,8 +3433,7 @@ async function restoreBackupDialog() {
     return;
   }
   try {
-    const res = await fetch("/api/backups?path=" + encodeURIComponent(state.filePath));
-    const data = await res.json();
+    const data = await host.listBackups(state.filePath);
     if (!data.ok) throw new Error(data.error || "Could not list backups");
     if (!data.backups.length) {
       openDialog({
@@ -3463,12 +3459,12 @@ async function restoreBackupDialog() {
       btn.addEventListener("click", async () => {
         closeDialog();
         const path = decodeURIComponent(btn.getAttribute("data-bak"));
-        const fileRes = await fetch("/api/file?path=" + encodeURIComponent(path) + "&t=" + Date.now());
+        const fileRes = await host.readText(path);
         if (!fileRes.ok) {
           setStatus("Could not read backup.");
           return;
         }
-        const text = await fileRes.text();
+        const text = fileRes.text;
         openXml(text, state.fileName, state.filePath);
         setStatus("Loaded backup into the editor: " + path.split(/[/\\]/).pop() + ". Save to write it to the live layout.");
       });
@@ -3484,10 +3480,7 @@ async function restoreAutosaveDialog() {
     return;
   }
   try {
-    const res = await fetch("/api/autosaves?path=" + encodeURIComponent(state.filePath));
-    const text = await res.text();
-    if (/^\s*</.test(text)) throw new Error("Restart start_editor.bat, then open http://127.0.0.1:8765");
-    const data = JSON.parse(text);
+    const data = await host.listAutosaves(state.filePath);
     if (!data.ok) throw new Error(data.error || "Could not list autosaves");
     if (!data.autosaves.length) {
       openDialog({
@@ -3513,12 +3506,12 @@ async function restoreAutosaveDialog() {
       btn.addEventListener("click", async () => {
         closeDialog();
         const path = decodeURIComponent(btn.getAttribute("data-auto"));
-        const fileRes = await fetch("/api/file?path=" + encodeURIComponent(path) + "&t=" + Date.now());
+        const fileRes = await host.readText(path);
         if (!fileRes.ok) {
           setStatus("Could not read autosave.");
           return;
         }
-        const body = await fileRes.text();
+        const body = fileRes.text;
         openXml(body, state.fileName, state.filePath);
         setStatus("Loaded autosave into the editor: " + path.split(/[/\\]/).pop() + ". Save to write it to the live layout.");
       });
@@ -3526,6 +3519,68 @@ async function restoreAutosaveDialog() {
   } catch (err) {
     setStatus("Autosave list failed. Restart start_editor.bat. " + err.message);
   }
+}
+
+function bindUpdater() {
+  if (!host.isElectron) return;
+  void host.setAutoUpdate(!!state.autoUpdate);
+  host.on("update-available", (payload) => {
+    setStatus("Update " + ((payload && payload.version) || "") + " is downloading in the background.");
+  });
+  host.on("update-downloaded", (payload) => {
+    void promptInstallUpdate(payload);
+  });
+  host.on("update-error", (payload) => {
+    setStatus("Update check failed: " + ((payload && payload.error) || "unknown"));
+  });
+  host.on("before-quit", () => {
+    void (async () => {
+      await runAutosave();
+      await host.readyToQuit();
+    })();
+  });
+}
+
+async function promptInstallUpdate(payload) {
+  await runAutosave();
+  const ver = (payload && payload.version) || "";
+  const go = window.confirm(
+    "Scrappy " +
+      ver +
+      " is ready. Restart now to install?\n\nAn autosave was written next to the layout (not the live file)."
+  );
+  if (go) {
+    await runAutosave();
+    const data = await host.installUpdate();
+    if (!data.ok) setStatus("Could not install update. " + (data.error || ""));
+  } else {
+    setStatus("Update downloaded. It will install the next time you quit Scrappy.");
+  }
+}
+
+async function checkForUpdatesNow() {
+  if (!host.isElectron) {
+    setStatus("This .bat build does not auto-update. Use the desktop installer from GitHub Releases, or download a new zip from main.");
+    return;
+  }
+  if (!state.autoUpdate) {
+    setStatus("Auto-update is off in Preferences. Turn it on to check GitHub Releases.");
+    return;
+  }
+  const data = await host.checkUpdates();
+  if (!data.ok) {
+    setStatus("Update check failed. " + (data.error || ""));
+    return;
+  }
+  if (data.skipped && data.reason === "dev") {
+    setStatus("Update checks run in the installed app, not while developing with npm start.");
+    return;
+  }
+  if (data.skipped && data.reason === "off") {
+    setStatus("Auto-update is off.");
+    return;
+  }
+  setStatus("Checked GitHub Releases for a newer installer.");
 }
 
 function showPreferences() {
@@ -3547,9 +3602,10 @@ function showPreferences() {
       <label class="check"><input id="pref-checker" type="checkbox" ${state.checker ? "checked" : ""} /> Checkerboard</label>
       <label class="check"><input id="pref-backup" type="checkbox" ${state.saveWithBackup ? "checked" : ""} /> Save with backup</label>
       <label class="check"><input id="pref-session" type="checkbox" ${state.restoreSession ? "checked" : ""} /> Reopen last mod, folders, and layout</label>
+      <label class="check"><input id="pref-autoupdate" type="checkbox" ${state.autoUpdate ? "checked" : ""} /> Check GitHub for desktop updates on launch</label>
       <label>Autosave every (minutes, 0 = off) <input id="pref-autosave-min" type="number" min="0" max="60" value="${state.autosaveMinutes}" /></label>
       <label>Keep this many autosaves <input id="pref-autosave-keep" type="number" min="1" max="10" value="${state.autosaveKeep}" /></label>
-      <p class="hint">Session (folders + last menu) stays on this PC. Autosaves are <code>YourMenu.layout.autosave.&lt;time&gt;</code> next to the layout — not the live file, and the game does not load them.</p>`,
+      <p class="hint">Session (folders + last menu) stays on this PC. Autosaves are <code>YourMenu.layout.autosave.&lt;time&gt;</code> next to the layout — not the live file, and the game does not load them. Uncheck desktop updates if you do not want the installed app to contact GitHub. Updates never write into your mod folder.</p>`,
     actions: [
       { label: "Cancel" },
       {
@@ -3563,9 +3619,10 @@ function showPreferences() {
           const checker = document.getElementById("pref-checker").checked;
           const saveWithBackup = document.getElementById("pref-backup").checked;
           const restoreSession = document.getElementById("pref-session").checked;
+          const autoUpdate = document.getElementById("pref-autoupdate").checked;
           const autosaveMinutes = Math.max(0, Math.min(60, Number(document.getElementById("pref-autosave-min").value) || 0));
           const autosaveKeep = Math.max(1, Math.min(10, Number(document.getElementById("pref-autosave-keep").value) || 4));
-          savePrefs({ previewRes, gridSize, snap, showHidden, checker, saveWithBackup, restoreSession, autosaveMinutes, autosaveKeep });
+          savePrefs({ previewRes, gridSize, snap, showHidden, checker, saveWithBackup, restoreSession, autoUpdate, autosaveMinutes, autosaveKeep });
           state.gridSize = gridSize;
           els["grid-size"].value = String(gridSize);
           state.snap = snap;
@@ -3576,6 +3633,8 @@ function showPreferences() {
           els["chk-checker"].checked = checker;
           setSaveWithBackup(saveWithBackup);
           state.restoreSession = restoreSession;
+          state.autoUpdate = autoUpdate;
+          void host.setAutoUpdate(autoUpdate);
           state.autosaveMinutes = autosaveMinutes;
           state.autosaveKeep = autosaveKeep;
           scheduleAutosave();

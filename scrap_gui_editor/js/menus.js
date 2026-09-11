@@ -89,6 +89,8 @@ export function menuBarSpec(ctx) {
         { cmd: "restoreBackup", label: "Restore Backup", disabled: !ctx.hasLayoutPath },
         { cmd: "restoreAutosave", label: "Restore Autosave", disabled: !ctx.hasLayoutPath },
         { sep: true },
+        { cmd: "checkUpdates", label: "Check for Updates" },
+        { sep: true },
         { cmd: "reloadAssets", label: "Reload Assets" },
         { cmd: "closeLayout", label: "Close Layout", disabled: !ctx.hasLayout },
       ],

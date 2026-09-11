@@ -1,0 +1,64 @@
+{
+  "name": "scrappy-gui-editor",
+  "productName": "Scrappy GUI Editor",
+  "version": "1.0.0",
+  "description": "Local visual editor for Scrap Mechanic MyGUI .layout files",
+  "author": "zernon916",
+  "private": true,
+  "main": "electron/main.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zernon916/ScrappyGUIEditor.git"
+  },
+  "homepage": "https://github.com/zernon916/ScrappyGUIEditor",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --win --dir --publish never",
+    "dist": "electron-builder --win --publish never"
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2"
+  },
+  "devDependencies": {
+    "electron": "^37.3.1",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.zernon916.scrappygui",
+    "productName": "Scrappy GUI Editor",
+    "copyright": "Copyright © zernon916",
+    "files": [
+      "electron/**/*",
+      "scrap_gui_editor/**/*",
+      "!**/__pycache__/**",
+      "!**/*.pyc"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "ScrappyGUIEditor-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Scrappy GUI Editor"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "zernon916",
+      "repo": "ScrappyGUIEditor"
+    }
+  }
+}
