@@ -12,7 +12,7 @@ This tool does **not** create accounts, cloud storage, telemetry, or online serv
 2. Python 3 is required (already used for the tiny local server)
 3. The default browser opens `http://127.0.0.1:8765/index.html`
 
-Open a **mod folder** (the directory that contains `Gui/`), then pick a menu from the **Layout** dropdown (`Gui/Layouts`). That binds `$CONTENT_DATA` so `Gui/Images` can resolve. Refresh the browser for HTML/JS tests; restart the bat file only if `server.py` changed.
+Open a **mod folder**, then pick a menu from the **Layout** dropdown. Defaults are `Gui/Menu/Layouts` and `Gui/Menu/Images` (or `Image`). If a mod uses another tree, use **Layouts folder…** and **Images folder…**.
 
 `start_editor.bat` starts a **local** Python server because the browser cannot list a mod folder by path, reload PNGs, or write a timestamped backup. There is no database.
 
@@ -104,21 +104,34 @@ Do not treat the canvas as pixel-perfect until you overlay an in-game screenshot
 ## Features
 
 - Import / drag-and-drop `.layout`
+- File / Edit / View / Layout / Help menu bar
+- Right-click menus on widgets, empty canvas, and hierarchy
+- Cut / Copy / Paste / Duplicate / Delete / Rename (F2)
+- Open Recent, Restore Backup, Close Layout, Preferences
+- Preview button (F5) hides editor chrome for a layout-only view
 - 1920×1080 canvas plus 1280×720, 1600×900, 2560×1440, 3440×1440, custom
 - Two preview modes (neither writes the file):
   1. Preserve layout units, change only the viewport
   2. Simulate uniform UI scaling (letterbox)
-- Zoom: Fit / 25 / 50 / 75 / 100 / 200% — view only
-- Checkerboard, grid, snap
-- Select, multi-select, overlap cycling (Alt/Ctrl-click or double-click)
+- Zoom: Fit / 25 / 50 / 75 / 100 / 200%, zoom in/out, actual size — view only
+- Tab switcher: optional `YourMenu.layout.tabs.json` beside the layout lists which widgets belong to which tab ([docs/tab-mapping.md](docs/tab-mapping.md)). If that file is missing, Scrappy guesses from names (`TabCraft`, `MainTab`, …). View one tab or All stacked. Does not change the `.layout`.
+- Editor groups: multi-select widgets and Group them (`Ctrl+G`). Hierarchy **Groups** dropdown reselects the set. Stored in `YourMenu.layout.groups.json` beside the layout, never inside Save / the `.layout` ([docs/groups.md](docs/groups.md)).
+- Hidden dropdown (Hierarchy): lists widgets hidden with Hide in Editor. Pick one and Unhide, or Unhide all. Does not list layout `Visible=false` tab pages and does not write the `.layout`.
+- Select, multi-select, select all, overlap cycling (Alt/Ctrl-click or double-click)
+- Align, distribute, lock, hide-in-editor, solo
 - Drag, 8 resize handles, Shift or Lock Aspect Ratio
 - Arrow = 1 preview pixel, Shift+Arrow = 10
 - Scale % from **imported** size, Scale Up/Down, Reset, Fit to Parent, center, group scale
+- Stacking: Bring to Front / Forward / Backward / Send to Back (XML sibling order)
 - PNG preview, replace, Save PNG As (does not overwrite unless you choose that path), Reload Assets
+- Reveal layout or image in Windows Explorer
 - Undo / Redo (Ctrl+Z, Ctrl+Y / Ctrl+Shift+Z)
-- Save As by default; Overwrite writes `name.YYYYMMDD-HHMMSS.bak.layout` first
+- Save writes the open file. **Save with backup** is a checkbox (toolbar, File menu, save dialog, Preferences). When checked, every Save writes a timestamped `.bak.layout` first. The setting is remembered.
+- Session restore: last mod, layouts folder, images folder, and layout reopen on launch (Preferences).
+- Autosave: rotating `YourMenu.layout.autosave.<time>` next to the layout (default every 5 minutes, keep 4). Not the live `.layout`. File > Restore Autosave. Interval and keep-count are in Preferences.
 - Source comparison (diff) before save
 - Screenshot overlay / side-by-side calibration (not exported)
+- Disk watch: if the open layout or PNG folder changes while the editor is running, a banner offers Reload or Keep editor
 
 ### Child scaling
 

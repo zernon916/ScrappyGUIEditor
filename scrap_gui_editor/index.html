@@ -8,6 +8,7 @@
 </head>
 <body>
   <div id="app">
+    <nav id="menubar" class="menubar" aria-label="Application"></nav>
     <header class="topbar">
       <div class="brand">
         <strong>Scrappy GUI Editor</strong>
@@ -23,7 +24,10 @@
         <button id="btn-open" type="button" class="ghost">Open one file…</button>
         <input id="file-open" type="file" accept=".layout,.xml" hidden />
         <button id="btn-save-as" type="button">Save As</button>
-        <button id="btn-overwrite" type="button" class="danger">Overwrite (with backup)</button>
+        <button id="btn-save" type="button" class="primary">Save</button>
+        <label class="check" title="When checked, every Save writes a timestamped .bak.layout next to the file first. Remembered for File > Save, Ctrl+S, and this checkbox.">
+          <input id="chk-backup" type="checkbox" checked /> Save with backup
+        </label>
         <button id="btn-undo" type="button" disabled>Undo</button>
         <button id="btn-redo" type="button" disabled>Redo</button>
       </div>
@@ -31,9 +35,15 @@
     </header>
 
     <div id="parse-errors" class="parse-errors hidden"></div>
+    <div id="disk-banner" class="disk-banner hidden">
+      <span id="disk-banner-text">A file changed on disk.</span>
+      <button id="btn-disk-reload" type="button" class="primary">Reload</button>
+      <button id="btn-disk-keep" type="button">Keep editor</button>
+    </div>
 
     <section class="toolbar">
-      <label>Preview
+      <button id="btn-preview" type="button" title="Hide editor chrome and preview the layout (F5)">Preview</button>
+      <label>Resolution
         <select id="preview-res">
           <option value="1280x720">1280×720</option>
           <option value="1600x900">1600×900</option>
@@ -67,6 +77,11 @@
       <label><input id="chk-snap" type="checkbox" /> Snap</label>
       <label><input id="chk-checker" type="checkbox" checked /> Checkerboard</label>
       <label><input id="chk-hidden" type="checkbox" checked /> Show hidden</label>
+      <label id="tab-filter-wrap" class="hidden" title="Guesses pages from TabCraft / MainTab names. Does not read Lua. Click a Tab… button on the canvas to switch.">Tabs
+        <select id="tab-filter">
+          <option value="all">All (stacked)</option>
+        </select>
+      </label>
     </section>
 
     <section class="toolbar thin">
@@ -74,8 +89,11 @@
         <input id="mod-path" type="text" placeholder="C:\Coding Projects\Testing\RemasteredFrameworkSystems0854-gj" />
       </label>
       <button id="btn-open-mod-path" type="button">Load mod</button>
+      <button id="btn-layouts-folder" type="button">Layouts folder…</button>
+      <button id="btn-images-folder" type="button">Images folder…</button>
       <button id="btn-reload-assets" type="button">Reload Assets</button>
-      <button id="btn-assets" type="button" class="ghost">PNG folder fallback</button>
+      <span id="folder-readout" class="muted">Default: Gui/Menu/Layouts and Gui/Menu/Images</span>
+      <button id="btn-assets" type="button" hidden>PNG folder fallback</button>
       <input id="dir-assets" type="file" webkitdirectory directory multiple hidden />
       <input id="asset-path" type="hidden" />
       <button id="btn-asset-path" type="button" hidden>Use path</button>
@@ -91,7 +109,28 @@
     <main class="workspace" id="workspace">
       <aside class="panel left" id="panel-left">
         <h2>Hierarchy</h2>
-        <p class="hint">Click to select. Shift-click multi-select. Alt/Ctrl-click or double-click cycles overlapping widgets.</p>
+        <div class="groups-box">
+          <label title="Editor-only. Not written into the layout. Saved beside it as .layout.groups.json">Groups
+            <select id="group-filter">
+              <option value="">(none)</option>
+            </select>
+          </label>
+          <div class="btn-row">
+            <button id="btn-group" type="button" title="Group selected widgets (Ctrl+G)">Group</button>
+            <button id="btn-ungroup" type="button" title="Remove group, keep widgets (Ctrl+Shift+G)">Ungroup</button>
+            <button id="btn-group-rename" type="button">Rename</button>
+          </div>
+          <label title="Widgets hidden in the editor only. Does not list layout Visible=false (tabs). Unhide does not write the .layout.">Hidden
+            <select id="hidden-filter">
+              <option value="">(none hidden)</option>
+            </select>
+          </label>
+          <div class="btn-row">
+            <button id="btn-unhide" type="button" title="Show the picked widget on the canvas again">Unhide</button>
+            <button id="btn-unhide-all" type="button" title="Clear all editor hides">Unhide all</button>
+          </div>
+        </div>
+        <p class="hint">Click to select. Right-click for the widget menu. Shift-click multi-select. Alt/Ctrl-click or double-click cycles overlapping widgets.</p>
         <div id="hierarchy"></div>
       </aside>
       <div class="splitter" id="split-left" data-side="left" title="Drag to resize hierarchy. Double-click resets."></div>
@@ -117,9 +156,18 @@
         <div id="prop-form" class="hidden">
           <label>Name <input id="f-name" type="text" /></label>
           <label>Type <input id="f-type" type="text" readonly /></label>
+          <p id="f-tab" class="muted"></p>
           <label>Skin <input id="f-skin" type="text" readonly /></label>
           <label>Align / anchor <input id="f-align" type="text" placeholder="(none in most RFS files)" /></label>
           <label class="check"><input id="f-visible" type="checkbox" /> Visible</label>
+          <h3>Stacking (sibling order)</h3>
+          <p class="hint">Later siblings draw on top. These buttons move the selection among widgets that share the same parent. Ctrl+[ / Ctrl+] one step; Ctrl+Shift+[ / Ctrl+Shift+] ends.</p>
+          <div class="btn-row">
+            <button id="btn-bring-front" type="button">Bring to front</button>
+            <button id="btn-bring-forward" type="button">Bring forward</button>
+            <button id="btn-send-backward" type="button">Send backward</button>
+            <button id="btn-send-back" type="button">Send to back</button>
+          </div>
 
           <h3>Layout units (exported)</h3>
           <div class="xywh">
@@ -218,12 +266,25 @@
   <div id="modal" class="modal hidden">
     <div class="modal-card">
       <h2 id="modal-title">XML changes</h2>
-      <p class="hint">Review the exact source comparison before writing a file. Save As is the default. Overwrite creates a timestamped backup first.</p>
+      <p id="modal-hint" class="hint">Review the exact source comparison before writing a file.</p>
       <pre id="diff-view" class="diff"></pre>
+      <label id="backup-modal-row" class="check">
+        <input id="chk-backup-modal" type="checkbox" checked /> Save with backup
+      </label>
       <div class="btn-row">
         <button id="btn-cancel-save" type="button">Cancel</button>
         <button id="btn-confirm-save" type="button" class="primary">Save</button>
       </div>
+    </div>
+  </div>
+
+  <div id="ctx-menu" class="ctx-menu hidden" role="menu"></div>
+
+  <div id="dialog" class="modal hidden">
+    <div class="modal-card" id="dialog-card">
+      <h2 id="dialog-title">Dialog</h2>
+      <div id="dialog-body" class="dialog-body"></div>
+      <div class="btn-row" id="dialog-actions"></div>
     </div>
   </div>
 

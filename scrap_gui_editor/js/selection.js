@@ -35,7 +35,7 @@ export class Selection {
     this.ids = [...new Set(ids)];
   }
 
-  selectFromHits(hits, additive, cycle) {
+  selectFromHits(hits, additive, cycle, rects) {
     if (!hits.length) {
       if (!additive) this.clear();
       return;
@@ -49,10 +49,33 @@ export class Selection {
     }
     this.cycleHits = hits;
     this.cycleIndex = 0;
-    const id = hits[0].id;
-    if (additive) this.toggle(id);
-    else this.set(id);
+    const pick = rects && !cycle ? smallestHit(hits, rects) : hits[0];
+    const id = pick.id;
+    if (additive) {
+      this.toggle(id);
+      return;
+    }
+    if (!cycle && this.has(id) && this.ids.length > 1) {
+      this.ids = this.ids.filter((x) => x !== id);
+      this.ids.push(id);
+      return;
+    }
+    this.set(id);
   }
+}
+
+function smallestHit(hits, rects) {
+  let best = hits[0];
+  let bestArea = Infinity;
+  for (const w of hits) {
+    const r = rects.get(w.id);
+    const area = r ? Math.max(1, r.w) * Math.max(1, r.h) : Infinity;
+    if (area < bestArea - 0.5) {
+      best = w;
+      bestArea = area;
+    }
+  }
+  return best;
 }
 
 function sameHitSet(a, b) {
@@ -60,12 +83,13 @@ function sameHitSet(a, b) {
   return a.every((w, i) => w.id === b[i].id);
 }
 
-export function hitTestAll(roots, rects, x, y, showHidden) {
+export function hitTestAll(roots, rects, x, y, showHidden, canHit) {
   const hits = [];
   function walk(list) {
     for (let i = list.length - 1; i >= 0; i--) {
       const w = list[i];
       walk(w.children);
+      if (canHit && !canHit(w)) continue;
       if (!w.visible && !showHidden) continue;
       const r = rects.get(w.id);
       if (!r) continue;

@@ -147,12 +147,23 @@ function paintList(parentEl, list, rects, options) {
     el.style.top = r.y + "px";
     el.style.width = Math.max(0, r.w) + "px";
     el.style.height = Math.max(0, r.h) + "px";
-    if (!w.visible) {
+    if (isXmlHidden(w) && !options.showHidden) continue;
+    if (options.isTabHidden && options.isTabHidden(w)) continue;
+    if (!isEditorPainted(w, options)) {
+      if (w.children.length) paintList(parentEl, w.children, rects, options);
+      continue;
+    }
+    if (w.locked) el.classList.add("is-locked");
+    if (w.editorHidden) el.classList.add("is-editor-hidden");
+    if (!w.visible || isXmlHidden(w)) {
       if (!options.showHidden) {
-        el.style.display = "none";
-      } else {
-        el.classList.add("is-hidden");
+        continue;
       }
+      el.classList.add("is-hidden");
+    }
+    if (options.showGameLayers && w.layer) {
+      el.dataset.layer = w.layer;
+      el.classList.add("has-layer");
     }
     const supported = SUPPORTED_RENDER.has(w.type);
     if (!supported) el.classList.add("is-placeholder");
@@ -193,9 +204,42 @@ function paintList(parentEl, list, rects, options) {
       label.classList.add("name-label");
     }
     el.appendChild(label);
+    if (options.showGameLayers && w.layer) {
+      const badge = document.createElement("div");
+      badge.className = "layer-badge";
+      badge.textContent = w.layer;
+      el.appendChild(badge);
+    }
     parentEl.appendChild(el);
     if (w.children.length) paintList(parentEl, w.children, rects, options);
   }
+}
+
+export function isXmlHidden(w) {
+  let n = w;
+  while (n) {
+    if (n.visible === false) return true;
+    n = n.parent;
+  }
+  return false;
+}
+
+export function isEditorPainted(w, options) {
+  const soloId = options && options.soloId;
+  if (soloId) {
+    let n = w;
+    while (n) {
+      if (n.id === soloId) return true;
+      n = n.parent;
+    }
+    return false;
+  }
+  let n = w;
+  while (n) {
+    if (n.editorHidden) return false;
+    n = n.parent;
+  }
+  return true;
 }
 
 function applyImageFit(img, el, widget, previewMode, imgInfo) {
@@ -260,10 +304,11 @@ export function imageScaleInfo(widget, rect, imgInfo) {
   };
 }
 
-export function renderHierarchy(container, roots, selectedIds, onClick) {
+export function renderHierarchy(container, roots, selectedIds, onClick, extra = {}) {
   container.innerHTML = "";
   const ul = document.createElement("ul");
   ul.className = "tree";
+  const { onContext, onToggle, soloId } = extra;
   function add(list, parent) {
     for (const w of list) {
       const li = document.createElement("li");
@@ -271,15 +316,53 @@ export function renderHierarchy(container, roots, selectedIds, onClick) {
       row.type = "button";
       row.className = "tree-item";
       if (selectedIds.has(w.id)) row.classList.add("is-selected");
-      if (!w.visible) row.classList.add("is-hidden");
+      if (!w.visible || isXmlHidden(w) || w.editorHidden) row.classList.add("is-hidden");
+      if (w.locked) row.classList.add("is-locked");
+      if (soloId && w.id === soloId) row.classList.add("is-solo");
+      if (extra.isTabHidden && extra.isTabHidden(w)) row.classList.add("is-tab-off");
+      const twist = document.createElement("span");
+      twist.className = "tree-twist";
+      if (w.children.length) {
+        twist.textContent = w.collapsed ? "▸" : "▾";
+        twist.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          if (onToggle) onToggle(w);
+        });
+      } else {
+        twist.textContent = " ";
+      }
       const title = w.name || "(unnamed)";
-      row.innerHTML = `<span class="t-type">${escapeHtml(w.type)}</span><span class="t-name">${escapeHtml(title)}</span>`;
+      const marks = `${w.locked ? " 🔒" : ""}${w.editorHidden ? " 👁" : ""}`;
+      row.appendChild(twist);
+      const typeEl = document.createElement("span");
+      typeEl.className = "t-type";
+      typeEl.textContent = w.type;
+      const nameEl = document.createElement("span");
+      nameEl.className = "t-name";
+      nameEl.textContent = title + marks;
+      row.appendChild(typeEl);
+      row.appendChild(nameEl);
+      if (extra.tabOwner) {
+        const owner = extra.tabOwner(w);
+        if (owner) {
+          const tabEl = document.createElement("span");
+          tabEl.className = "t-tab";
+          tabEl.textContent = owner;
+          row.appendChild(tabEl);
+        }
+      }
       row.addEventListener("click", (ev) => {
         ev.stopPropagation();
         onClick(w, ev);
       });
+      row.addEventListener("contextmenu", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (onContext) onContext(w, ev);
+      });
       li.appendChild(row);
-      if (w.children.length) {
+      if (w.children.length && !w.collapsed) {
         const sub = document.createElement("ul");
         add(w.children, sub);
         li.appendChild(sub);

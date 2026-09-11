@@ -440,12 +440,15 @@ function serializeOpenTag(node) {
   return s;
 }
 
-function buildWidget(xml, parent, warnings) {
+export function buildWidget(xml, parent, warnings) {
   const widget = {
     id: "w" + nextWidgetId++,
     xml,
     parent,
     children: [],
+    editorHidden: false,
+    locked: false,
+    collapsed: false,
     name: getAttr(xml, "name") || "",
     type: getAttr(xml, "type") || "",
     skin: getAttr(xml, "skin") || "",
@@ -687,6 +690,126 @@ function inferChildIndent(xml) {
     }
   }
   return "\n\t\t";
+}
+
+export function cloneXmlNode(node) {
+  if (!node) return null;
+  if (node.kind !== "element") {
+    return { kind: node.kind, raw: node.raw, dirty: true };
+  }
+  return {
+    kind: "element",
+    name: node.name,
+    attrs: (node.attrs || []).map((a) => ({ ...a, rawValue: a.rawValue })),
+    selfClosing: node.selfClosing,
+    openEnd: node.openEnd,
+    children: (node.children || []).map(cloneXmlNode),
+    closeRaw: node.closeRaw,
+    dirty: true,
+  };
+}
+
+export function serializeXml(node) {
+  return serializeNode(node);
+}
+
+export function extractWidgetXml(parentXml, widgetXml) {
+  const kids = parentXml.children || [];
+  const i = kids.indexOf(widgetXml);
+  if (i < 0) return { index: -1, nodes: [] };
+  let start = i;
+  if (i > 0 && kids[i - 1].kind === "text" && /^\s*$/.test(kids[i - 1].raw || "")) start = i - 1;
+  const nodes = kids.splice(start, i - start + 1);
+  parentXml.dirty = true;
+  return { index: start, nodes };
+}
+
+export function insertXmlNodes(parentXml, index, nodes) {
+  if (!parentXml.children) parentXml.children = [];
+  const at = Math.max(0, Math.min(index < 0 ? parentXml.children.length : index, parentXml.children.length));
+  parentXml.children.splice(at, 0, ...nodes);
+  parentXml.dirty = true;
+  parentXml.selfClosing = false;
+  if (!parentXml.openEnd || String(parentXml.openEnd).includes("/")) parentXml.openEnd = ">";
+  if (!parentXml.closeRaw) parentXml.closeRaw = `</${parentXml.name}>`;
+}
+
+export function insertWidgetElement(parentXml, widgetXml, beforeXml) {
+  const indent = inferChildIndent(parentXml);
+  const nodes = [
+    { kind: "text", raw: indent, dirty: true },
+    widgetXml,
+  ];
+  if (beforeXml) {
+    const kids = parentXml.children || [];
+    let at = kids.indexOf(beforeXml);
+    if (at < 0) at = kids.length;
+    if (at > 0 && kids[at - 1].kind === "text" && /^\s*$/.test(kids[at - 1].raw || "")) at -= 1;
+    insertXmlNodes(parentXml, at, nodes);
+  } else {
+    insertXmlNodes(parentXml, (parentXml.children || []).length, nodes);
+  }
+}
+
+export function createBlankWidgetXml({
+  type = "Widget",
+  skin = "PanelEmpty",
+  name = "",
+  positionReal = "0.1 0.1 0.2 0.15",
+  props = {},
+} = {}) {
+  const children = [];
+  const keys = Object.keys(props);
+  for (const key of keys) {
+    children.push({ kind: "text", raw: "\n\t\t", dirty: true });
+    children.push({
+      kind: "element",
+      name: "Property",
+      attrs: [
+        { name: "key", value: key, quote: '"', prefix: " ", between: "=" },
+        { name: "value", value: String(props[key]), quote: '"', prefix: " ", between: "=" },
+      ],
+      selfClosing: true,
+      openEnd: "/>",
+      children: [],
+      closeRaw: "",
+      dirty: true,
+    });
+  }
+  if (keys.length) children.push({ kind: "text", raw: "\n\t", dirty: true });
+  const attrs = [
+    { name: "type", value: type, quote: '"', prefix: " ", between: "=" },
+    { name: "skin", value: skin, quote: '"', prefix: " ", between: "=" },
+    { name: "position_real", value: positionReal, quote: '"', prefix: " ", between: "=" },
+  ];
+  if (name) attrs.push({ name: "name", value: name, quote: '"', prefix: " ", between: "=" });
+  return {
+    kind: "element",
+    name: "Widget",
+    attrs,
+    selfClosing: false,
+    openEnd: ">",
+    children,
+    closeRaw: "</Widget>",
+    dirty: true,
+  };
+}
+
+export function createWidget(options, parent = null) {
+  return buildWidget(createBlankWidgetXml(options), parent, []);
+}
+
+export function reorderWidgetElements(parentXml, orderedWidgetXml) {
+  if (!parentXml || !parentXml.children || !orderedWidgetXml.length) return;
+  const queue = [...orderedWidgetXml];
+  for (let i = 0; i < parentXml.children.length; i++) {
+    const n = parentXml.children[i];
+    if (n.kind === "element" && n.name === "Widget") {
+      const next = queue.shift();
+      if (next) parentXml.children[i] = next;
+    }
+  }
+  parentXml.dirty = true;
 }
 
 export const KNOWN_WIDGET_TYPES = [
