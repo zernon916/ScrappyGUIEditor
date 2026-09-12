@@ -4,7 +4,7 @@ Local visual editor for Scrap Mechanic MyGUI `.layout` files.
 
 This is the **`.bat` / Python** build. It stays on your PC: no accounts, cloud, or telemetry. A tiny server binds to `127.0.0.1` only.
 
-A packaged desktop app is planned on the [`Desktop-Version`](https://github.com/zernon916/ScrappyGUIEditor/tree/Desktop-Version) branch. Use **this `main` branch** if you just want to download and run the editor.
+Want an installer instead? Use the Windows app on [`Desktop-Version`](https://github.com/zernon916/ScrappyGUIEditor/tree/Desktop-Version) / [Releases](https://github.com/zernon916/ScrappyGUIEditor/releases). Use **this `main` branch** if you just want the `.bat` editor.
 
 ## Download
 
@@ -13,6 +13,17 @@ A packaged desktop app is planned on the [`Desktop-Version`](https://github.com/
 3. Unzip / open the folder. You want `start_editor.bat` at the top (it launches `scrap_gui_editor\start_editor.bat`).
 
 **Need:** [Python 3](https://www.python.org/downloads/) on Windows, with **Add python.exe to PATH** checked. You do not need Node for normal use.
+
+## What’s new (1.0.1, same canvas as the desktop app)
+
+- **Paint order matches the game.** Later XML siblings draw on top. Empty `ImageBox` cells look solid so you can see coverage, and the properties panel warns when a later widget covers the selection.
+- **Resize is not Scale %.** **W px / H px** plus **Apply size to selection** changes width and height with the top-left fixed. Scale % still multiplies the size from when you opened the file.
+- **Resize a panel without stretching its buttons.** Select only the panel (for example `PanelCats`). Leave **Stretch children when this panel resizes** off. Category buttons keep their pixel size; art that already fills the panel (`0 0 1 1`) still grows with it.
+- **Auto-size parent to wrap children** (on by default) grows panels such as `PanelCats` when you move children, so MyGUI does not clip them in-game. The editor paints children even outside the parent; the game does not.
+- **Handle drag scales the group** (on by default) scales the whole selection from its box. Turn it off to resize each selected widget’s own box.
+- The **status bar** sits under the canvas only, so it no longer covers the bottom of Hierarchy.
+
+Refresh the browser after you unzip a new `main` download so these scripts load.
 
 ## How to use
 

@@ -6,15 +6,18 @@ import {
   renderWidgets,
   renderHierarchy,
   writeScreenRect,
+  nativeToScreen,
   imageScaleInfo,
   isRelative,
   isEditorPainted,
   isXmlHidden,
+  paintOrderList,
 } from "./renderer.js";
-import { Selection, hitTestAll, boundingBox, renderSelectionOverlay, resizeBox, scaleRectsFromBox } from "./selection.js";
+import { Selection, hitTestAll, boundingBox, renderSelectionOverlay, resizeBox, scaleRectsFromBox, resizeEachRects } from "./selection.js";
 import { createMenuController, widgetMenuItems, canvasMenuItems, hierarchyMenuItems, menuBarSpec } from "./menus.js";
 import { detectTabIds, isOnInactiveTab, tabIdFromButton, tabOwner, tabOwnerLabel, tabLabel, parseTabMap } from "./tabs.js";
 import { parseGroups, serializeGroups, uniqueGroupId, matchingGroupId, renameGroupMember } from "./groups.js";
+import { host } from "./host.js";
 
 const GITHUB_REPO = "https://github.com/zernon916/ScrappyGUIEditor";
 
@@ -55,6 +58,8 @@ const state = {
   showHidden: true,
   aspectLock: false,
   scaleChildren: false,
+  handleScaleGroup: true,
+  autoFitParent: true,
   imagePreviewMode: "layout",
   screenshot: { url: null, opacity: 0.45, mode: "overlay" },
   refOverlay: { on: false, x: 200, y: 80, w: 800, h: 600 },
@@ -80,6 +85,7 @@ const state = {
   autosaveMinutes: 5,
   autosaveKeep: 4,
   autosaveTimer: null,
+  autoUpdate: true,
   diskXml: "",
   lastAutosaveXml: "",
 };
@@ -109,6 +115,7 @@ function init() {
   refreshCanvasChrome();
   refreshMenubar();
   void restoreLastSession();
+  bindUpdater();
 }
 
 function cacheEls() {
@@ -183,6 +190,12 @@ function cacheEls() {
     "f-w",
     "f-h",
     "f-px",
+    "f-px-w",
+    "f-px-h",
+    "btn-apply-px-size",
+    "chk-handle-group-scale",
+    "chk-auto-fit-parent",
+    "overlap-note",
     "f-scale",
     "f-caption",
     "f-image",
@@ -325,13 +338,24 @@ function bindUi() {
   els["chk-aspect"].addEventListener("change", () => {
     state.aspectLock = els["chk-aspect"].checked;
   });
+  els["chk-handle-group-scale"].addEventListener("change", () => {
+    state.handleScaleGroup = els["chk-handle-group-scale"].checked;
+  });
+  els["chk-auto-fit-parent"].addEventListener("change", () => {
+    state.autoFitParent = els["chk-auto-fit-parent"].checked;
+    setStatus(
+      state.autoFitParent
+        ? "Parent panels will resize to wrap their children."
+        : "Parent auto-size is off. Resize PanelCats (etc.) yourself."
+    );
+  });
   els["chk-scale-children"].addEventListener("change", () => {
     state.scaleChildren = els["chk-scale-children"].checked;
-    if (state.scaleChildren) {
-      warn(
-        "position_real children already follow their parent size. Scaling stored child values is not how these RFS layouts normally work."
-      );
-    }
+    setStatus(
+      state.scaleChildren
+        ? "Children will stretch when you resize this panel."
+        : "Buttons keep their pixel size when you resize the panel."
+    );
   });
   els["img-preview-mode"].addEventListener("change", () => {
     state.imagePreviewMode = els["img-preview-mode"].value;
@@ -357,6 +381,12 @@ function bindUi() {
   els["f-font"].addEventListener("change", () => editPropField("font"));
   els["f-align"].addEventListener("change", () => editPropField("align"));
   els["f-scale"].addEventListener("change", onScaleField);
+  els["btn-apply-px-size"].addEventListener("click", applyPixelSize);
+  ["f-px-w", "f-px-h"].forEach((id) => {
+    els[id].addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") applyPixelSize();
+    });
+  });
 
   els["btn-scale-up"].addEventListener("click", () => nudgeScale(10));
   els["btn-scale-down"].addEventListener("click", () => nudgeScale(-10));
@@ -511,8 +541,7 @@ async function pickModFolder() {
   const start = els["mod-path"].value.trim() || localStorage.getItem("smLayoutEditor.modPath") || "";
   setStatus("Choose the mod folder in the Windows dialog (the folder that contains Gui)…");
   try {
-    const res = await fetch("/api/pick-mod?start=" + encodeURIComponent(start));
-    const data = await res.json();
+    const data = await host.pickMod(start);
     if (!data.ok) {
       showErrors([data.error || "Folder picker failed."]);
       return;
@@ -548,8 +577,7 @@ async function openMod(path, keepLayout = false) {
     return;
   }
   try {
-    const res = await fetch("/api/mod?path=" + encodeURIComponent(path));
-    const data = await res.json();
+    const data = await host.openMod(path);
     if (!data.ok) {
       showErrors([data.error || "Could not open that mod folder."]);
       setStatus(data.error || "Mod open failed.");
@@ -603,10 +631,7 @@ async function pickCustomFolder(kind) {
       : "Select menu images folder (default is Gui/Menu/Images)";
   setStatus("Choose a folder in the Windows dialog…");
   try {
-    const res = await fetch(
-      "/api/pick-folder?start=" + encodeURIComponent(start) + "&title=" + encodeURIComponent(title)
-    );
-    const data = await res.json();
+    const data = await host.pickFolder(start, title);
     if (!data.ok) {
       showErrors([data.error || "Folder picker failed."]);
       return;
@@ -623,8 +648,7 @@ async function pickCustomFolder(kind) {
 }
 
 async function applyLayoutsFolder(path) {
-  const res = await fetch("/api/layouts?path=" + encodeURIComponent(path));
-  const data = await res.json();
+  const data = await host.listLayouts(path);
   if (!data.ok) {
     showErrors([data.error || "Could not list layouts in that folder."]);
     return;
@@ -638,8 +662,7 @@ async function applyLayoutsFolder(path) {
 }
 
 async function applyImagesFolder(path) {
-  const res = await fetch("/api/list?path=" + encodeURIComponent(path));
-  const data = await res.json();
+  const data = await host.listPngs(path);
   if (!data.ok) {
     showErrors([data.error || "Could not list PNGs in that folder."]);
     return;
@@ -690,13 +713,12 @@ async function onLayoutPicked() {
 async function loadLayoutFromMod(path) {
   const meta = state.layouts.find((l) => l.path === path);
   try {
-    const res = await fetch("/api/file?path=" + encodeURIComponent(path) + "&t=" + Date.now());
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: res.statusText }));
-      showErrors([err.error || "Could not read layout file."]);
+    const data = await host.readText(path);
+    if (!data.ok) {
+      showErrors([data.error || "Could not read layout file."]);
       return;
     }
-    const text = await res.text();
+    const text = data.text;
     openXml(text, meta ? meta.name : path.split(/[/\\]/).pop(), path);
     state.diskXml = text;
     state.lastAutosaveXml = "";
@@ -882,11 +904,6 @@ function applyZoom() {
 }
 
 function afterSelect() {
-  const w = primaryWidget();
-  if (w && w.type === "ImageBox") {
-    els["chk-aspect"].checked = true;
-    state.aspectLock = true;
-  }
   syncActiveGroupFromSelection();
   redraw();
 }
@@ -959,7 +976,8 @@ function onCanvasDown(ev) {
       startX: p.x,
       startY: p.y,
       startBox: box,
-      snaps: snapshotGeometry(widgets),
+      targetIds: widgets.map((w) => w.id),
+      snaps: snapshotGeometry(geometrySet(widgets)),
       lock: state.aspectLock || ev.shiftKey,
     };
     ev.preventDefault();
@@ -980,7 +998,8 @@ function onCanvasDown(ev) {
       kind: "move",
       startX: p.x,
       startY: p.y,
-      snaps: snapshotGeometry(widgets),
+      targetIds: widgets.map((w) => w.id),
+      snaps: snapshotGeometry(geometrySet(widgets)),
       moved: false,
     };
   }
@@ -1006,7 +1025,9 @@ function onCanvasMove(ev) {
   const dy = p.y - state.drag.startY;
   restoreGeometry(state.byId, state.drag.snaps);
   const { rects } = currentRects();
-  const widgets = state.drag.snaps.map((s) => state.byId.get(s.id)).filter(Boolean);
+  const widgets = (state.drag.targetIds || state.drag.snaps.map((s) => s.id))
+    .map((id) => state.byId.get(id))
+    .filter(Boolean);
   if (state.drag.kind === "move") {
     if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) {
       state.drag.moved = true;
@@ -1028,15 +1049,39 @@ function onCanvasMove(ev) {
     }
   } else if (state.drag.kind === "resize") {
     const lock = state.aspectLock || ev.shiftKey;
-    const raw = resizeBox(state.drag.startBox, state.drag.handle, dx, dy, lock);
-    const toBox = clampToCanvas({
-      x: snapVal(raw.x),
-      y: snapVal(raw.y),
-      w: Math.max(1, snapVal(raw.w)),
-      h: Math.max(1, snapVal(raw.h)),
-    });
-    applyScaledBox(widgets, rects, state.drag.startBox, toBox);
+    if (!state.handleScaleGroup && widgets.length) {
+      const next = resizeEachRects(
+        widgets.map((w) => w.id),
+        rects,
+        state.drag.handle,
+        dx,
+        dy,
+        lock
+      );
+      for (const w of widgets) {
+        const r = rects.get(w.id);
+        const nr = next.get(w.id);
+        if (!r || !nr) continue;
+        writeScreenRect(w, clampToCanvas({
+          x: snapVal(nr.x),
+          y: snapVal(nr.y),
+          w: Math.max(1, snapVal(nr.w)),
+          h: Math.max(1, snapVal(nr.h)),
+        }), r.parentRect);
+      }
+    } else {
+      const raw = resizeBox(state.drag.startBox, state.drag.handle, dx, dy, lock);
+      const toBox = clampToCanvas({
+        x: snapVal(raw.x),
+        y: snapVal(raw.y),
+        w: Math.max(1, snapVal(raw.w)),
+        h: Math.max(1, snapVal(raw.h)),
+      });
+      applyScaledBox(widgets, rects, state.drag.startBox, toBox);
+    }
+    keepChildPixels(widgets, rects);
   }
+  wrapParents(widgets);
   rebuildRectsOnly();
 }
 
@@ -1098,6 +1143,128 @@ function uniqueWidgets(list) {
   return out;
 }
 
+function geometrySet(widgets) {
+  const parents = parentsToFit(widgets);
+  const extra = [];
+  for (const p of parents) extra.push(...(p.children || []));
+  extra.push(...pinSet(widgets));
+  return uniqueWidgets(widgets.concat(parents, extra));
+}
+
+function pinSet(widgets) {
+  if (state.scaleChildren) return [];
+  const skip = new Set(widgets.map((w) => w.id));
+  const out = [];
+  for (const w of widgets) {
+    for (const c of w.children || []) {
+      if (!skip.has(c.id)) out.push(c);
+    }
+  }
+  return uniqueWidgets(out);
+}
+
+function isFillChild(child, parentRect, childRect) {
+  if (!parentRect || !childRect) return false;
+  if (
+    isRelative(child) &&
+    Math.abs(child.x) < 0.02 &&
+    Math.abs(child.y) < 0.02 &&
+    Math.abs(child.w - 1) < 0.04 &&
+    Math.abs(child.h - 1) < 0.04
+  ) {
+    return true;
+  }
+  return (
+    parentRect.w > 1 &&
+    parentRect.h > 1 &&
+    childRect.w / parentRect.w >= 0.94 &&
+    childRect.h / parentRect.h >= 0.94
+  );
+}
+
+function keepChildPixels(parents, rectsBefore) {
+  if (state.scaleChildren || !parents || !parents.length) return;
+  for (const parent of parents) {
+    if (!parent.children || !parent.children.length) continue;
+    const oldParent = rectsBefore.get(parent.id);
+    if (!oldParent || !oldParent.parentRect) continue;
+    const newParent = nativeToScreen(parent, oldParent.parentRect);
+    for (const c of parent.children) {
+      const cr = rectsBefore.get(c.id);
+      if (!cr) continue;
+      if (isFillChild(c, oldParent, cr)) continue;
+      writeScreenRect(c, { x: cr.x, y: cr.y, w: cr.w, h: cr.h }, newParent);
+      applyGeometry(c);
+    }
+  }
+}
+
+function parentsToFit(widgets) {
+  const skip = new Set(widgets.map((w) => w.id));
+  const seen = new Set();
+  const out = [];
+  for (const w of widgets) {
+    const p = w.parent;
+    if (!p || skip.has(p.id) || seen.has(p.id)) continue;
+    seen.add(p.id);
+    out.push(p);
+  }
+  return out;
+}
+
+function shouldAutoFitParent(parent, rects) {
+  if (!parent || !parent.children || !parent.children.length) return false;
+  if (String(parent.name || "").toLowerCase() === "root") return false;
+  const r = rects.get(parent.id);
+  if (!r || !r.parentRect) return true;
+  const pr = r.parentRect;
+  if (pr.w > 1 && pr.h > 1 && r.w / pr.w >= 0.94 && r.h / pr.h >= 0.94) return false;
+  return true;
+}
+
+function wrapParents(widgets) {
+  if (!state.autoFitParent || !widgets || !widgets.length) return;
+  for (const parent of parentsToFit(widgets)) {
+    const { rects } = currentRects();
+    if (!shouldAutoFitParent(parent, rects)) continue;
+    fitParentAroundChildren(parent, rects);
+  }
+}
+
+function fitParentAroundChildren(parent, rects) {
+  const box = boundingBox(
+    parent.children.map((c) => c.id),
+    rects
+  );
+  if (!box) return false;
+  const pr = rects.get(parent.id);
+  if (!pr) return false;
+  const next = {
+    x: box.x,
+    y: box.y,
+    w: Math.max(1, box.w),
+    h: Math.max(1, box.h),
+  };
+  if (
+    Math.abs(next.x - pr.x) < 0.25 &&
+    Math.abs(next.y - pr.y) < 0.25 &&
+    Math.abs(next.w - pr.w) < 0.25 &&
+    Math.abs(next.h - pr.h) < 0.25
+  ) {
+    return false;
+  }
+  writeScreenRect(parent, next, pr.parentRect);
+  applyGeometry(parent);
+  for (const c of parent.children) {
+    const r = rects.get(c.id);
+    if (!r) continue;
+    if (isFillChild(c, pr, r)) continue;
+    writeScreenRect(c, r, next);
+    applyGeometry(c);
+  }
+  return true;
+}
+
 function applyScaledBox(widgets, rects, fromBox, toBox) {
   const next = scaleRectsFromBox(
     widgets.map((w) => w.id),
@@ -1137,10 +1304,21 @@ function commitGeometry(before, after, label) {
 function mutateWidgets(label, fn) {
   const widgets = scaleTargets();
   if (!widgets.length) return;
-  const before = snapshotGeometry(widgets);
+  const { rects } = currentRects();
+  const sizeBefore = new Map(widgets.map((w) => [w.id, { w: w.w, h: w.h }]));
+  const set = geometrySet(widgets);
+  const before = snapshotGeometry(set);
   fn(widgets);
+  keepChildPixels(
+    widgets.filter((w) => {
+      const s = sizeBefore.get(w.id);
+      return s && (w.w !== s.w || w.h !== s.h);
+    }),
+    rects
+  );
   for (const w of widgets) applyGeometry(w);
-  const after = snapshotGeometry(widgets);
+  wrapParents(widgets);
+  const after = snapshotGeometry(set);
   if (sameSnaps(before, after)) return;
   state.history.push({
     label,
@@ -1197,6 +1375,11 @@ function fillProps() {
   els["f-px"].textContent = r
     ? `Preview px: ${Math.round(r.x)}, ${Math.round(r.y)}  ${Math.round(r.w)}×${Math.round(r.h)}   source=${w.posSource}`
     : "";
+  if (els["f-px-w"] && r) {
+    els["f-px-w"].value = String(Math.max(1, Math.round(r.w)));
+    els["f-px-h"].value = String(Math.max(1, Math.round(r.h)));
+  }
+  fillOverlapNote(sel, rects);
   const sx = w.originalW ? (w.w / w.originalW) * 100 : 100;
   const sy = w.originalH ? (w.h / w.originalH) * 100 : 100;
   els["f-scale"].value = formatField((sx + sy) / 2);
@@ -1248,29 +1431,110 @@ function onNumericFields() {
   const width = Number(els["f-w"].value);
   const height = Number(els["f-h"].value);
   if (![x, y, width, height].every(Number.isFinite)) return;
-  const before = snapshotGeometry([w]);
+  const { rects } = currentRects();
+  const sizeChanged = w.w !== width || w.h !== height;
+  const set = geometrySet([w]);
+  const before = snapshotGeometry(set);
   w.x = x;
   w.y = y;
   w.w = width;
   w.h = height;
   w.geomDirty = true;
   applyGeometry(w);
-  const after = snapshotGeometry([w]);
+  if (sizeChanged) keepChildPixels([w], rects);
+  wrapParents([w]);
+  const after = snapshotGeometry(set);
   if (sameSnaps(before, after)) return;
   state.history.push({
     label: "Edit numbers",
     undo: () => {
       restoreGeometry(state.byId, before);
-      applyGeometry(w);
+      before.forEach((s) => {
+        const x = state.byId.get(s.id);
+        if (x) applyGeometry(x);
+      });
       redraw();
     },
     redo: () => {
       restoreGeometry(state.byId, after);
-      applyGeometry(w);
+      after.forEach((s) => {
+        const x = state.byId.get(s.id);
+        if (x) applyGeometry(x);
+      });
       redraw();
     },
   });
   redraw();
+}
+
+function fillOverlapNote(sel, rects) {
+  const note = els["overlap-note"];
+  if (!note) return;
+  if (!state.parsed || !sel.length) {
+    note.classList.add("hidden");
+    note.textContent = "";
+    return;
+  }
+  const names = new Set();
+  for (const w of sel) {
+    for (const other of widgetsOnTopOf(w, rects)) {
+      if (sel.some((s) => s.id === other.id)) continue;
+      names.add(other.name || other.type);
+    }
+  }
+  if (!names.size) {
+    note.classList.add("hidden");
+    note.textContent = "";
+    return;
+  }
+  const list = [...names].slice(0, 8).join(", ");
+  const extra = names.size > 8 ? "…" : "";
+  note.textContent =
+    "Covered in-game by later widgets: " +
+    list +
+    extra +
+    ". Empty slots look see-through here; the game paints them opaque. Bring to front, or resize/move so they do not overlap.";
+  note.classList.remove("hidden");
+}
+
+function widgetsOnTopOf(widget, rects) {
+  const r = rects.get(widget.id);
+  if (!r || !state.parsed) return [];
+  const order = paintOrderList(state.parsed.roots);
+  const idx = order.indexOf(widget);
+  if (idx < 0) return [];
+  const out = [];
+  for (let i = idx + 1; i < order.length; i++) {
+    const other = order[i];
+    if (isOnInactiveTab(other, state.tabs, state.layoutTab, state.tabMap)) continue;
+    if (isXmlHidden(other) && !state.showHidden) continue;
+    const o = rects.get(other.id);
+    if (!o) continue;
+    if (rectsOverlap(r, o)) out.push(other);
+  }
+  return out;
+}
+
+function rectsOverlap(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function applyPixelSize() {
+  const pw = Number(els["f-px-w"].value);
+  const ph = Number(els["f-px-h"].value);
+  if (!Number.isFinite(pw) || !Number.isFinite(ph) || pw < 1 || ph < 1) {
+    setStatus("Resize needs width and height in pixels (1 or more).");
+    return;
+  }
+  const { rects } = currentRects();
+  mutateWidgets("Resize px", (widgets) => {
+    for (const w of widgets) {
+      const r = rects.get(w.id);
+      if (!r) continue;
+      writeScreenRect(w, { x: r.x, y: r.y, w: pw, h: ph }, r.parentRect);
+    }
+  });
+  setStatus("Resized " + selectedWidgets().length + " widget(s) to " + Math.round(pw) + "×" + Math.round(ph) + " px. Scale % is unchanged.");
 }
 
 function onScaleField() {
@@ -1613,14 +1877,15 @@ function onKey(ev) {
   ev.preventDefault();
   const widgets = scaleTargets().filter((w) => !w.locked);
   const { rects } = currentRects();
-  const before = snapshotGeometry(widgets);
+  const before = snapshotGeometry(geometrySet(widgets));
   for (const w of widgets) {
     const r = rects.get(w.id);
     if (!r) continue;
     writeScreenRect(w, clampToCanvas({ x: r.x + dx, y: r.y + dy, w: r.w, h: r.h }), r.parentRect);
     applyGeometry(w);
   }
-  commitGeometry(before, snapshotGeometry(widgets), "Nudge");
+  wrapParents(widgets);
+  commitGeometry(before, snapshotGeometry(geometrySet(widgets)), "Nudge");
 }
 
 function restack(action) {
@@ -1735,8 +2000,7 @@ async function setAssetPath(path) {
   if (!path) return;
   state.assetPath = path;
   try {
-    const res = await fetch("/api/list?path=" + encodeURIComponent(path));
-    const data = await res.json();
+    const data = await host.listPngs(path);
     if (!data.ok) {
       warn(data.error || "Could not list asset folder.");
       return;
@@ -1789,7 +2053,7 @@ async function loadTexture(tex) {
     for (const c of imageCandidates(tex)) {
       const hit = state.assetList.find((x) => x.rel.replace(/\\/g, "/") === c || x.rel.endsWith("/" + c) || x.name === c.split("/").pop());
       if (hit) {
-        const url = "/api/file?path=" + encodeURIComponent(hit.path) + "&t=" + Date.now();
+        const url = await host.fileUrl(hit.path);
         const dim = await probeImage(url);
         return { url, width: dim.w, height: dim.h, filename: hit.name, path: hit.path };
       }
@@ -1952,12 +2216,7 @@ async function confirmSave() {
     return;
   }
   try {
-    const res = await fetch("/api/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: state.filePath, content: xml, backup: state.saveWithBackup }),
-    });
-    const data = await res.json();
+    const data = await host.saveFile(state.filePath, xml, state.saveWithBackup);
     if (!data.ok) throw new Error(data.error || "Save failed");
     const backupNote = state.saveWithBackup
       ? ` Backup: ${data.backup || "(none, new file)"}`
@@ -1976,6 +2235,24 @@ async function confirmSave() {
 
 async function saveAs(xml) {
   const name = state.fileName || "edited.layout";
+  if (host.isElectron) {
+    const suggested = isDiskLayout()
+      ? state.filePath.replace(/\.layout$/i, "") + ".edited.layout"
+      : name.replace(/\.layout$/i, "") + ".edited.layout";
+    const pick = await host.pickSave(suggested);
+    if (!pick.ok) {
+      setStatus("Save As failed. " + (pick.error || ""));
+      return;
+    }
+    if (pick.cancelled || !pick.path) return;
+    const data = await host.saveFile(pick.path, xml, false);
+    if (!data.ok) {
+      setStatus("Save As failed. " + (data.error || ""));
+      return;
+    }
+    setStatus("Saved as " + pick.path + " (original layout was not overwritten).");
+    return;
+  }
   if (window.showSaveFilePicker) {
     try {
       const handle = await window.showSaveFilePicker({
@@ -2059,9 +2336,9 @@ async function loadTabMapping() {
   if (!p || p.indexOf("<") !== -1) return;
   const mapPath = p + ".tabs.json";
   try {
-    const res = await fetch("/api/file?path=" + encodeURIComponent(mapPath) + "&t=" + Date.now());
-    if (!res.ok) return;
-    const text = await res.text();
+    const data = await host.readText(mapPath);
+    if (!data.ok) return;
+    const text = data.text;
     if (state.filePath !== p) return;
     const map = parseTabMap(text);
     if (!map) {
@@ -2203,9 +2480,9 @@ async function loadGroupMapping() {
   if (!p || p.indexOf("<") !== -1) return;
   if (isDiskLayout()) {
     try {
-      const res = await fetch("/api/file?path=" + encodeURIComponent(p + ".groups.json") + "&t=" + Date.now());
-      if (res.ok) {
-        const parsed = parseGroups(await res.text());
+      const data = await host.readText(p + ".groups.json");
+      if (data.ok) {
+        const parsed = parseGroups(data.text);
         if (state.filePath !== p) return;
         if (parsed) {
           state.groups = parsed.groups;
@@ -2295,15 +2572,9 @@ function persistGroups() {
   }
   const path = groupsSidecarPath();
   if (!path) return;
-  fetch("/api/save", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path, content: xml, backup: false }),
-  })
-    .then((res) => {
-      if (!res.ok) setStatus("Could not write groups sidecar (layout save is unchanged).");
-    })
-    .catch(() => setStatus("Could not write groups sidecar (layout save is unchanged)."));
+  host.saveFile(path, xml, false).then((data) => {
+    if (!data.ok) setStatus("Could not write groups sidecar (layout save is unchanged).");
+  }).catch(() => setStatus("Could not write groups sidecar (layout save is unchanged)."));
 }
 
 function maybeSwitchLayoutTab(w) {
@@ -2465,6 +2736,7 @@ function loadPrefs() {
       if (modal) modal.checked = prefs.saveWithBackup;
     }
     if (typeof prefs.restoreSession === "boolean") state.restoreSession = prefs.restoreSession;
+    if (typeof prefs.autoUpdate === "boolean") state.autoUpdate = prefs.autoUpdate;
     if (Number.isFinite(prefs.autosaveMinutes)) state.autosaveMinutes = Math.max(0, Math.min(60, prefs.autosaveMinutes));
     if (Number.isFinite(prefs.autosaveKeep)) state.autosaveKeep = Math.max(1, Math.min(10, prefs.autosaveKeep));
     if (prefs.previewRes) {
@@ -2556,14 +2828,7 @@ async function runAutosave() {
   const xml = exportLayoutXml(state.parsed.document);
   if (!xml || xml === state.diskXml || xml === state.lastAutosaveXml) return;
   try {
-    const res = await fetch("/api/autosave", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: state.filePath, content: xml, keep: state.autosaveKeep }),
-    });
-    const text = await res.text();
-    if (/^\s*</.test(text)) return;
-    const data = JSON.parse(text);
+    const data = await host.autosave(state.filePath, xml, state.autosaveKeep);
     if (!data.ok) throw new Error(data.error || "Autosave failed");
     state.lastAutosaveXml = xml;
     setStatus("Autosaved " + (data.path || "").split(/[/\\]/).pop());
@@ -2585,10 +2850,7 @@ async function pollDiskWatch(force = false) {
   const images = state.imagesDir || "";
   if (!layout && !images) return;
   try {
-    const res = await fetch(
-      "/api/watch?layout=" + encodeURIComponent(layout) + "&images=" + encodeURIComponent(images)
-    );
-    const data = await res.json();
+    const data = await host.watch(layout, images);
     if (!data.ok) return;
     if (force || !state.watch.ready) {
       rememberWatchStamp(data);
@@ -3033,12 +3295,7 @@ async function revealPath(path) {
     return;
   }
   try {
-    const res = await fetch("/api/reveal?path=" + encodeURIComponent(path));
-    const text = await res.text();
-    if (/^\s*</.test(text)) {
-      throw new Error("Open http://127.0.0.1:8765 from start_editor.bat (this tab is not that server).");
-    }
-    const data = JSON.parse(text);
+    const data = await host.reveal(path);
     if (!data.ok) throw new Error(data.error || "Reveal failed");
     setStatus("Opened Explorer at " + path);
   } catch (err) {
@@ -3076,6 +3333,9 @@ async function runCommand(cmd, arg) {
       break;
     case "restoreAutosave":
       await restoreAutosaveDialog();
+      break;
+    case "checkUpdates":
+      await checkForUpdatesNow();
       break;
     case "reloadAssets":
       await reloadAssets();
@@ -3402,6 +3662,7 @@ async function runCommand(cmd, arg) {
           <li><kbd>Ctrl+[</kbd> / <kbd>Ctrl+]</kbd> stack · Shift for ends</li>
           <li><kbd>F5</kbd> Layout preview · <kbd>F11</kbd> Fullscreen · <kbd>Esc</kbd> cancel</li>
           <li>Arrows nudge 1px · Shift+Arrows 10px</li>
+          <li>Drag handles: <strong>resize</strong> that widget (or each, if “Handle drag scales the group” is off). Scale % still grows from imported size.</li>
         </ul>`,
         actions: [{ label: "Close", primary: true }],
       });
@@ -3412,16 +3673,23 @@ async function runCommand(cmd, arg) {
     case "helpGithub":
       window.open(GITHUB_REPO, "_blank");
       break;
-    case "helpAbout":
+    case "helpAbout": {
+      const info = await host.appInfo().catch(() => ({ ok: false }));
+      const ver = info && info.version ? " v" + info.version : "";
+      const how = host.isElectron
+        ? "This is the desktop app. Edit → Preferences can turn GitHub update checks off. Updates never write into your mod folder."
+        : "This is the .bat / Python build. The helper server binds to <code>127.0.0.1</code> only.";
       openDialog({
         title: "About Scrappy",
         narrow: true,
-        html: `<p><strong>Scrappy GUI Editor</strong> is a local-only visual editor for Scrap Mechanic MyGUI <code>.layout</code> files.</p>
-          <p>No accounts, cloud, or telemetry. The helper server binds to <code>127.0.0.1</code> only.</p>
+        html: `<p><strong>Scrappy GUI Editor${ver}</strong> is a local-only visual editor for Scrap Mechanic MyGUI <code>.layout</code> files.</p>
+          <p>${how}</p>
+          <p>No accounts, cloud, or telemetry.</p>
           <p><a href="${GITHUB_REPO}" target="_blank" rel="noopener">${GITHUB_REPO}</a></p>`,
         actions: [{ label: "Close", primary: true }],
       });
       break;
+    }
     default:
       break;
   }
@@ -3436,8 +3704,7 @@ async function restoreBackupDialog() {
     return;
   }
   try {
-    const res = await fetch("/api/backups?path=" + encodeURIComponent(state.filePath));
-    const data = await res.json();
+    const data = await host.listBackups(state.filePath);
     if (!data.ok) throw new Error(data.error || "Could not list backups");
     if (!data.backups.length) {
       openDialog({
@@ -3463,12 +3730,12 @@ async function restoreBackupDialog() {
       btn.addEventListener("click", async () => {
         closeDialog();
         const path = decodeURIComponent(btn.getAttribute("data-bak"));
-        const fileRes = await fetch("/api/file?path=" + encodeURIComponent(path) + "&t=" + Date.now());
+        const fileRes = await host.readText(path);
         if (!fileRes.ok) {
           setStatus("Could not read backup.");
           return;
         }
-        const text = await fileRes.text();
+        const text = fileRes.text;
         openXml(text, state.fileName, state.filePath);
         setStatus("Loaded backup into the editor: " + path.split(/[/\\]/).pop() + ". Save to write it to the live layout.");
       });
@@ -3484,10 +3751,7 @@ async function restoreAutosaveDialog() {
     return;
   }
   try {
-    const res = await fetch("/api/autosaves?path=" + encodeURIComponent(state.filePath));
-    const text = await res.text();
-    if (/^\s*</.test(text)) throw new Error("Restart start_editor.bat, then open http://127.0.0.1:8765");
-    const data = JSON.parse(text);
+    const data = await host.listAutosaves(state.filePath);
     if (!data.ok) throw new Error(data.error || "Could not list autosaves");
     if (!data.autosaves.length) {
       openDialog({
@@ -3513,12 +3777,12 @@ async function restoreAutosaveDialog() {
       btn.addEventListener("click", async () => {
         closeDialog();
         const path = decodeURIComponent(btn.getAttribute("data-auto"));
-        const fileRes = await fetch("/api/file?path=" + encodeURIComponent(path) + "&t=" + Date.now());
+        const fileRes = await host.readText(path);
         if (!fileRes.ok) {
           setStatus("Could not read autosave.");
           return;
         }
-        const body = await fileRes.text();
+        const body = fileRes.text;
         openXml(body, state.fileName, state.filePath);
         setStatus("Loaded autosave into the editor: " + path.split(/[/\\]/).pop() + ". Save to write it to the live layout.");
       });
@@ -3526,6 +3790,68 @@ async function restoreAutosaveDialog() {
   } catch (err) {
     setStatus("Autosave list failed. Restart start_editor.bat. " + err.message);
   }
+}
+
+function bindUpdater() {
+  if (!host.isElectron) return;
+  void host.setAutoUpdate(!!state.autoUpdate);
+  host.on("update-available", (payload) => {
+    setStatus("Update " + ((payload && payload.version) || "") + " is downloading in the background.");
+  });
+  host.on("update-downloaded", (payload) => {
+    void promptInstallUpdate(payload);
+  });
+  host.on("update-error", (payload) => {
+    setStatus("Update check failed: " + ((payload && payload.error) || "unknown"));
+  });
+  host.on("before-quit", () => {
+    void (async () => {
+      await runAutosave();
+      await host.readyToQuit();
+    })();
+  });
+}
+
+async function promptInstallUpdate(payload) {
+  await runAutosave();
+  const ver = (payload && payload.version) || "";
+  const go = window.confirm(
+    "Scrappy " +
+      ver +
+      " is ready. Restart now to install?\n\nAn autosave was written next to the layout (not the live file)."
+  );
+  if (go) {
+    await runAutosave();
+    const data = await host.installUpdate();
+    if (!data.ok) setStatus("Could not install update. " + (data.error || ""));
+  } else {
+    setStatus("Update downloaded. It will install the next time you quit Scrappy.");
+  }
+}
+
+async function checkForUpdatesNow() {
+  if (!host.isElectron) {
+    setStatus("This .bat build does not auto-update. Use the desktop installer from GitHub Releases, or download a new zip from main.");
+    return;
+  }
+  if (!state.autoUpdate) {
+    setStatus("Auto-update is off in Preferences. Turn it on to check GitHub Releases.");
+    return;
+  }
+  const data = await host.checkUpdates();
+  if (!data.ok) {
+    setStatus("Update check failed. " + (data.error || ""));
+    return;
+  }
+  if (data.skipped && data.reason === "dev") {
+    setStatus("Update checks run in the installed app, not while developing with npm start.");
+    return;
+  }
+  if (data.skipped && data.reason === "off") {
+    setStatus("Auto-update is off.");
+    return;
+  }
+  setStatus("Checked GitHub Releases for a newer installer.");
 }
 
 function showPreferences() {
@@ -3547,9 +3873,10 @@ function showPreferences() {
       <label class="check"><input id="pref-checker" type="checkbox" ${state.checker ? "checked" : ""} /> Checkerboard</label>
       <label class="check"><input id="pref-backup" type="checkbox" ${state.saveWithBackup ? "checked" : ""} /> Save with backup</label>
       <label class="check"><input id="pref-session" type="checkbox" ${state.restoreSession ? "checked" : ""} /> Reopen last mod, folders, and layout</label>
+      <label class="check"><input id="pref-autoupdate" type="checkbox" ${state.autoUpdate ? "checked" : ""} /> Check GitHub for desktop updates on launch</label>
       <label>Autosave every (minutes, 0 = off) <input id="pref-autosave-min" type="number" min="0" max="60" value="${state.autosaveMinutes}" /></label>
       <label>Keep this many autosaves <input id="pref-autosave-keep" type="number" min="1" max="10" value="${state.autosaveKeep}" /></label>
-      <p class="hint">Session (folders + last menu) stays on this PC. Autosaves are <code>YourMenu.layout.autosave.&lt;time&gt;</code> next to the layout — not the live file, and the game does not load them.</p>`,
+      <p class="hint">Session (folders + last menu) stays on this PC. Autosaves are <code>YourMenu.layout.autosave.&lt;time&gt;</code> next to the layout — not the live file, and the game does not load them. Uncheck desktop updates if you do not want the installed app to contact GitHub. Updates never write into your mod folder.</p>`,
     actions: [
       { label: "Cancel" },
       {
@@ -3563,9 +3890,10 @@ function showPreferences() {
           const checker = document.getElementById("pref-checker").checked;
           const saveWithBackup = document.getElementById("pref-backup").checked;
           const restoreSession = document.getElementById("pref-session").checked;
+          const autoUpdate = document.getElementById("pref-autoupdate").checked;
           const autosaveMinutes = Math.max(0, Math.min(60, Number(document.getElementById("pref-autosave-min").value) || 0));
           const autosaveKeep = Math.max(1, Math.min(10, Number(document.getElementById("pref-autosave-keep").value) || 4));
-          savePrefs({ previewRes, gridSize, snap, showHidden, checker, saveWithBackup, restoreSession, autosaveMinutes, autosaveKeep });
+          savePrefs({ previewRes, gridSize, snap, showHidden, checker, saveWithBackup, restoreSession, autoUpdate, autosaveMinutes, autosaveKeep });
           state.gridSize = gridSize;
           els["grid-size"].value = String(gridSize);
           state.snap = snap;
@@ -3576,6 +3904,8 @@ function showPreferences() {
           els["chk-checker"].checked = checker;
           setSaveWithBackup(saveWithBackup);
           state.restoreSession = restoreSession;
+          state.autoUpdate = autoUpdate;
+          void host.setAutoUpdate(autoUpdate);
           state.autosaveMinutes = autosaveMinutes;
           state.autosaveKeep = autosaveKeep;
           scheduleAutosave();

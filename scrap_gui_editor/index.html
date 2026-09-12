@@ -147,6 +147,7 @@
           </div>
         </div>
         <p class="hint canvas-note">Canvas zoom and resolution previews do not change exported values. Skin chrome is approximated — not claimed pixel-perfect vs Scrap Mechanic.</p>
+        <footer id="status">Local editor ready.</footer>
       </section>
       <div class="splitter" id="split-right" data-side="right" title="Drag to resize properties. Double-click resets."></div>
 
@@ -177,7 +178,28 @@
             <label>H <input id="f-h" type="number" step="any" /></label>
           </div>
           <p id="f-px" class="muted"></p>
-          <label>Scale % of imported size <input id="f-scale" type="number" step="any" /></label>
+          <p id="overlap-note" class="warn hidden"></p>
+
+          <h3>Resize (canvas pixels)</h3>
+          <p class="hint">Sets width and height. Top-left stays. Select the panel only — buttons keep their pixel size unless “Stretch children…” is on. Fill-the-parent art still grows with the panel.</p>
+          <div class="xywh">
+            <label>W px <input id="f-px-w" type="number" min="1" step="1" /></label>
+            <label>H px <input id="f-px-h" type="number" min="1" step="1" /></label>
+          </div>
+          <button id="btn-apply-px-size" type="button">Apply size to selection</button>
+          <label class="check">
+            <input id="chk-auto-fit-parent" type="checkbox" checked /> Auto-size parent to wrap children
+          </label>
+          <label class="check" title="On: dragging a handle scales the whole selection from its box (widgets move). Off: each selected widget’s own box is resized.">
+            <input id="chk-handle-group-scale" type="checkbox" checked /> Handle drag scales the group
+          </label>
+          <label class="check" title="On: children grow and shrink with this panel (MyGUI default). Off: buttons stay the same pixel size.">
+            <input id="chk-scale-children" type="checkbox" /> Stretch children when this panel resizes
+          </label>
+
+          <h3>Scale % of imported size</h3>
+          <p class="hint">Multiplies the size this widget had when you opened the file. Same percent on width and height. Keep using this when you want to grow or shrink without inventing a new shape.</p>
+          <label>Scale % <input id="f-scale" type="number" step="any" /></label>
           <p id="scale-readout" class="muted"></p>
           <p id="distort-warn" class="warn hidden">Width and height are scaled by different percentages.</p>
           <div class="btn-row">
@@ -186,7 +208,6 @@
             <button id="btn-reset-size" type="button">Reset to Original Size</button>
           </div>
           <label class="check"><input id="chk-aspect" type="checkbox" /> Lock Aspect Ratio</label>
-          <label class="check"><input id="chk-scale-children" type="checkbox" /> Also scale child stored values</label>
           <div class="btn-row">
             <button id="btn-fit-parent" type="button">Fit to Parent</button>
             <button id="btn-center" type="button">Center in Parent</button>
@@ -259,7 +280,6 @@
       </aside>
     </main>
 
-    <footer id="status">Local editor ready.</footer>
     <div id="drop-mask">Drop a .layout, or paste a mod folder path and click Load mod</div>
   </div>
 
