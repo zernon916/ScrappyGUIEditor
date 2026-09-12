@@ -16,6 +16,7 @@ import {
 import { Selection, hitTestAll, boundingBox, renderSelectionOverlay, resizeBox, scaleRectsFromBox, resizeEachRects, boxHits } from "./selection.js";
 import { createMenuController, widgetMenuItems, canvasMenuItems, hierarchyMenuItems, menuBarSpec } from "./menus.js";
 import { detectTabIds, isOnInactiveTab, tabIdFromButton, tabOwner, tabOwnerLabel, tabLabel, parseTabMap } from "./tabs.js";
+import { parseStateMap, defaultStateChoice, isOnInactiveState, stateOwnerLabel } from "./states.js";
 import { parseGroups, serializeGroups, uniqueGroupId, matchingGroupId, renameGroupMember } from "./groups.js";
 import { host } from "./host.js";
 
@@ -84,6 +85,8 @@ const state = {
   tabs: [],
   tabMap: null,
   layoutTab: "all",
+  stateMap: null,
+  stateChoice: {},
   groups: [],
   activeGroup: "",
   menus: null,
@@ -128,6 +131,7 @@ function init() {
 function cacheEls() {
   [
     "layout-select",
+    "state-sets",
     "left-page",
     "right-page",
     "groups-empty",
@@ -157,6 +161,7 @@ function cacheEls() {
     "f-name",
     "f-skin-line",
     "f-tab",
+    "f-state",
     "f-align",
     "f-visible",
     "btn-bring-front",
@@ -884,11 +889,15 @@ function openXml(text, fileName, filePath, fileObj) {
   rememberRecent();
   if (isDiskLayout()) persistSession();
   state.tabMap = null;
+  state.stateMap = null;
+  state.stateChoice = {};
   state.groups = [];
   state.activeGroup = "";
   refreshTabFilter();
+  refreshStateSetsUi();
   refreshGroupFilter();
   void loadTabMapping();
+  void loadStateMapping();
   void loadGroupMapping();
   state.watch.ready = false;
   pollDiskWatch(true);
@@ -947,6 +956,7 @@ function redraw() {
       },
       soloId: state.soloId,
       isTabHidden: (w) => isOnInactiveTab(w, state.tabs, state.layoutTab, state.tabMap),
+      isStateHidden: (w) => isOnInactiveState(w, state.stateMap, state.stateChoice),
       tabOwner: (w) => tabOwner(w, state.tabs, state.tabMap),
     });
   } else {
@@ -1522,6 +1532,9 @@ function fillProps() {
       ? `Layout tab: ${tabOwnerLabel(w, state.tabs, state.tabMap)}  (${state.tabMap ? "mapping file" : "name guess"})`
       : "";
   }
+  if (els["f-state"]) {
+    els["f-state"].textContent = stateOwnerLabel(w, state.stateMap, state.stateChoice);
+  }
   els["f-align"].value = w.align || "";
   els["f-visible"].checked = w.visible;
   els["f-x"].value = formatField(w.x);
@@ -1664,6 +1677,7 @@ function widgetsOnTopOf(widget, rects) {
   for (let i = idx + 1; i < order.length; i++) {
     const other = order[i];
     if (isOnInactiveTab(other, state.tabs, state.layoutTab, state.tabMap)) continue;
+    if (isOnInactiveState(other, state.stateMap, state.stateChoice)) continue;
     if (isXmlHidden(other) && !state.showHidden) continue;
     const o = rects.get(other.id);
     if (!o) continue;
@@ -2491,11 +2505,13 @@ function widgetRenderOptions() {
     soloId: state.soloId,
     showGameLayers: state.showGameLayers,
     isTabHidden: (w) => isOnInactiveTab(w, state.tabs, state.layoutTab, state.tabMap),
+    isStateHidden: (w) => isOnInactiveState(w, state.stateMap, state.stateChoice),
   };
 }
 
 function canHitWidget(w) {
   if (isOnInactiveTab(w, state.tabs, state.layoutTab, state.tabMap)) return false;
+  if (isOnInactiveState(w, state.stateMap, state.stateChoice)) return false;
   if (isXmlHidden(w) && !(state.showHidden && !state.layoutPreview)) return false;
   return isEditorPainted(w, { soloId: state.soloId });
 }
@@ -2531,6 +2547,74 @@ async function loadTabMapping() {
     setStatus("Tab mapping loaded from " + mapPath.split(/[/\\]/).pop() + ".");
   } catch {
     /* no sidecar is normal */
+  }
+}
+
+async function loadStateMapping() {
+  const p = state.filePath || "";
+  if (!p || p.indexOf("<") !== -1) return;
+  const mapPath = p + ".states.json";
+  try {
+    const data = await host.readText(mapPath);
+    if (!data.ok) return;
+    const text = data.text;
+    if (state.filePath !== p) return;
+    const map = parseStateMap(text);
+    if (!map) {
+      setStatus("Lua states file found but invalid (need version 1 and at least one set). Showing all stacked widgets.");
+      return;
+    }
+    state.stateMap = map;
+    state.stateChoice = defaultStateChoice(map);
+    refreshStateSetsUi();
+    refreshMenubar();
+    redraw();
+    setStatus("Lua states loaded from " + mapPath.split(/[/\\]/).pop() + ".");
+  } catch {
+    /* no sidecar is normal */
+  }
+}
+
+function setLayoutState(setId, optionId) {
+  if (!state.stateMap || !setId || !optionId) return;
+  const set = state.stateMap.sets.find((s) => s.id === setId);
+  if (!set || !set.options.some((o) => o.id === optionId)) return;
+  if (state.stateChoice[setId] === optionId) return;
+  state.stateChoice[setId] = optionId;
+  refreshStateSetsUi();
+  refreshMenubar();
+  redraw();
+  const opt = set.options.find((o) => o.id === optionId);
+  setStatus("Lua state “" + set.label + "”: " + ((opt && opt.label) || optionId) + ".");
+}
+
+function refreshStateSetsUi() {
+  const hostEl = els["state-sets"];
+  if (!hostEl) return;
+  hostEl.innerHTML = "";
+  const map = state.stateMap;
+  if (!map || !map.sets.length) {
+    hostEl.classList.add("hidden");
+    return;
+  }
+  hostEl.classList.remove("hidden");
+  for (const set of map.sets) {
+    const label = document.createElement("label");
+    label.className = "layout-pick";
+    label.append(document.createTextNode(set.label + " "));
+    const sel = document.createElement("select");
+    sel.dataset.stateSet = set.id;
+    const active = state.stateChoice[set.id] || set.defaultOption;
+    for (const opt of set.options) {
+      const o = document.createElement("option");
+      o.value = opt.id;
+      o.textContent = opt.label;
+      if (opt.id === active) o.selected = true;
+      sel.appendChild(o);
+    }
+    sel.addEventListener("change", () => setLayoutState(set.id, sel.value));
+    label.appendChild(sel);
+    hostEl.appendChild(label);
   }
 }
 
@@ -2822,6 +2906,8 @@ function menuContext() {
     tabs: state.tabs || [],
     tabLabels: Object.fromEntries((state.tabs || []).map((id) => [id, tabLabel(id, state.tabMap)])),
     layoutTab: state.layoutTab,
+    stateSets: (state.stateMap && state.stateMap.sets) || [],
+    stateChoice: state.stateChoice || {},
     groups: state.groups || [],
     activeGroup: state.activeGroup || "",
     hasActiveGroup: !!state.activeGroup,
@@ -3578,6 +3664,8 @@ async function runCommand(cmd, arg) {
     state.tabMap = null;
     state.tabs = [];
     state.layoutTab = "all";
+    state.stateMap = null;
+    state.stateChoice = {};
     state.groups = [];
     state.activeGroup = "";
     refreshGroupFilter();
@@ -3586,6 +3674,7 @@ async function runCommand(cmd, arg) {
       els["layout-select"].value = "";
       hideDiskBanner();
       refreshTabFilter();
+      refreshStateSetsUi();
       persistSession();
       redraw();
       setStatus("Layout closed.");
@@ -3637,6 +3726,9 @@ async function runCommand(cmd, arg) {
     case "layoutTab":
       state.layoutTab = arg || "all";
       redraw();
+      break;
+    case "layoutState":
+      if (arg && arg.set && arg.option) setLayoutState(arg.set, arg.option);
       break;
     case "groupSel":
       await groupSelection();
@@ -3915,6 +4007,7 @@ async function runCommand(cmd, arg) {
             <li>Save writes the open layout immediately (Ctrl+S). Timestamped <code>.bak.layout</code> backups are optional in Edit &gt; Preferences.</li>
             <li>If a layout or PNG changes on disk, a banner offers reload.</li>
             <li>Groups (Hierarchy panel) are editor-only. They save as <code>.layout.groups.json</code> beside the layout, never inside Save.</li>
+            <li>Lua-swapped stacks (upgrade art, selected slots) use optional <code>.layout.states.json</code>. View → Lua States. The game never loads that file.</li>
             <li>Last mod / folders / layout reopen automatically. Autosaves are <code>.layout.autosave.&lt;time&gt;</code> beside the file (Preferences). File &gt; Restore Autosave loads a copy; Save writes the live layout.</li>
           </ul>`,
         actions: [{ label: "Close", primary: true }],

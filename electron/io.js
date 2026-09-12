@@ -4,6 +4,7 @@ const path = require("path");
 const ALLOWED_READ = new Set([".layout", ".xml", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".txt", ".md"]);
 const TABS_SUFFIX = ".layout.tabs.json";
 const GROUPS_SUFFIX = ".layout.groups.json";
+const STATES_SUFFIX = ".layout.states.json";
 const AUTOSAVE_MARK = ".layout.autosave.";
 const ALLOWED_WRITE = new Set([".layout", ".xml", ".png"]);
 
@@ -16,7 +17,7 @@ function allowedRead(filePath) {
   const name = path.basename(filePath).toLowerCase();
   const ext = path.extname(filePath).toLowerCase();
   if (ALLOWED_READ.has(ext)) return true;
-  if (name.endsWith(TABS_SUFFIX) || name.endsWith(GROUPS_SUFFIX)) return true;
+  if (name.endsWith(TABS_SUFFIX) || name.endsWith(GROUPS_SUFFIX) || name.endsWith(STATES_SUFFIX)) return true;
   return name.includes(AUTOSAVE_MARK);
 }
 

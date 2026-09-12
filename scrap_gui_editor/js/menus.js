@@ -152,6 +152,21 @@ export function menuBarSpec(ctx) {
               )
             : [{ label: "(none in this layout)", disabled: true }],
         },
+        {
+          label: "Lua States",
+          disabled: !ctx.stateSets || !ctx.stateSets.length,
+          submenu: ctx.stateSets && ctx.stateSets.length
+            ? ctx.stateSets.map((set) => ({
+                label: set.label,
+                submenu: set.options.map((opt) => ({
+                  cmd: "layoutState",
+                  label: opt.label,
+                  arg: { set: set.id, option: opt.id },
+                  checked: ctx.stateChoice && ctx.stateChoice[set.id] === opt.id,
+                })),
+              }))
+            : [{ label: "(no .states.json)", disabled: true }],
+        },
         { sep: true },
         { cmd: "zoomIn", label: "Zoom In", shortcut: "Ctrl+=" },
         { cmd: "zoomOut", label: "Zoom Out", shortcut: "Ctrl+-" },

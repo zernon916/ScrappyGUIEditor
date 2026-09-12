@@ -117,6 +117,7 @@ Do not treat the canvas as pixel-perfect until you overlay an in-game screenshot
   2. Simulate uniform UI scaling (letterbox)
 - Zoom: Fit / 25 / 50 / 75 / 100 / 200%, zoom in/out, actual size — view only
 - Tab switcher: optional `YourMenu.layout.tabs.json` beside the layout lists which widgets belong to which tab ([docs/tab-mapping.md](docs/tab-mapping.md)). If that file is missing, Scrappy guesses from names (`TabCraft`, `MainTab`, …). View one tab or All stacked. Does not change the `.layout`.
+- Lua states: optional `YourMenu.layout.states.json` for stacked widgets Lua `setVisible`s (upgrade art, selected slot, …). One option per set on the canvas. No name guessing. Does not change the `.layout`. Spec: [docs/states.md](docs/states.md).
 - Editor groups: multi-select widgets and Group them (`Ctrl+G`). Hierarchy **Groups** dropdown reselects the set. Stored in `YourMenu.layout.groups.json` beside the layout, never inside Save / the `.layout` ([docs/groups.md](docs/groups.md)).
 - Hidden dropdown (Hierarchy): lists widgets hidden with Hide in Editor. Pick one and Unhide, or Unhide all. Does not list layout `Visible=false` tab pages and does not write the `.layout`.
 - Select, multi-select, select all, overlap cycling (Alt/Ctrl-click or double-click)

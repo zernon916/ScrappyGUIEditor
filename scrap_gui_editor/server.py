@@ -27,6 +27,7 @@ PORT = 8765
 ALLOWED_READ = {".layout", ".xml", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".txt", ".md"}
 ALLOWED_TABS_SUFFIX = ".layout.tabs.json"
 ALLOWED_GROUPS_SUFFIX = ".layout.groups.json"
+ALLOWED_STATES_SUFFIX = ".layout.states.json"
 ALLOWED_AUTOSAVE_MARK = ".layout.autosave."
 ALLOWED_WRITE = {".layout", ".xml", ".png"}
 
@@ -39,7 +40,9 @@ def _allowed_read_file(path: Path) -> bool:
     name = path.name.lower()
     if path.suffix.lower() in ALLOWED_READ:
         return True
-    if name.endswith(ALLOWED_TABS_SUFFIX) or name.endswith(ALLOWED_GROUPS_SUFFIX):
+    if name.endswith(ALLOWED_TABS_SUFFIX) or name.endswith(ALLOWED_GROUPS_SUFFIX) or name.endswith(
+        ALLOWED_STATES_SUFFIX
+    ):
         return True
     return _is_autosave_name(name)
 

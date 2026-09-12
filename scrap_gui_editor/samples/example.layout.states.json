@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "layout": "example.layout",
+  "inherit": true,
+  "sets": [
+    {
+      "id": "UpgradeLevel",
+      "label": "Upgrade level",
+      "default": "Lv1",
+      "options": [
+        { "id": "Lv1", "label": "Level 1", "widgets": ["ArtStationLv1"] },
+        { "id": "Lv2", "label": "Level 2", "widgets": ["ArtStationLv2"] },
+        { "id": "Lv3", "label": "Level 3", "widgets": ["ArtStationLv3"] }
+      ]
+    },
+    {
+      "id": "SlotSelected",
+      "label": "Selected slot",
+      "default": "None",
+      "options": [
+        { "id": "None", "label": "None", "widgets": [] },
+        { "id": "Slot0", "label": "Slot 0", "widgets": ["ArtSel0"] },
+        { "id": "Slot1", "label": "Slot 1", "widgets": ["ArtSel1"] }
+      ]
+    }
+  ]
+}

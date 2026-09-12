@@ -12,17 +12,11 @@ The **`.bat` / Python** download stays on [`main`](https://github.com/zernon916/
 
 The installer does not write into your Scrap Mechanic mod folder. Layouts stay where you opened them.
 
-## What’s new in 1.1.0
+## What’s new in 1.2.0
 
-Editor chrome and tools (same canvas on [`main`](https://github.com/zernon916/ScrappyGUIEditor/tree/main) for the `.bat` build):
+- **Lua states.** Stacked widgets that Lua `setVisible`s (upgrade art, selected-slot images, …) can use `YourMenu.layout.states.json` beside the layout. Chrome dropdowns and **View → Lua States** show one option per set. The game never loads that file. Spec: [`scrap_gui_editor/docs/states.md`](scrap_gui_editor/docs/states.md).
 
-- **Q Select, B Box, W Move, E Scale.** Select clicks; Box draws a marquee (intersect, not fully-inside). Neither moves widgets — **Move** does. Scale uses the handles. **Esc** returns to Select, then clears.
-- **N / Ctrl+N** hide the left and right docks. Left pages: Hierarchy, Groups, Hidden. Right: Transform, Layers, Text, Image, Overlay, Raw.
-- **File / Edit** stay sticky. Open mod, layouts/images folders, Save, and Save As are in **File**. Backup is **Preferences**. Resolution / Scale test live in the **Preview** HUD (**F5**).
-- **Ctrl+S** writes immediately (no XML-diff confirm). Groups and Hidden are lists; new groups use an in-app prompt (Electron has no `window.prompt`).
-- Unpackaged `start_desktop.bat` uses a separate app name so it does not fight the installed EXE over Chromium cache.
-
-1.0.1 still applies: in-game paint order, W/H resize vs Scale %, panel stretch / wrap-children, and the canvas status bar.
+1.1.0 still applies: Q/B/W/E tools, N / Ctrl+N docks, sticky File/Edit, immediate Save.
 
 ## How to use
 
@@ -35,12 +29,13 @@ Editor chrome and tools (same canvas on [`main`](https://github.com/zernon916/Sc
 
 - Widget **`name=`** is the Lua API. Do not rename `CloseButton` (etc.) to tidy XML.
 - **Tabs** (Craft / Upgrade, …) use an optional `YourMenu.layout.tabs.json` beside the layout. Spec: [`scrap_gui_editor/docs/tab-mapping.md`](scrap_gui_editor/docs/tab-mapping.md).
+- **Lua states** (upgrade art, selected-slot images, …) use an optional `YourMenu.layout.states.json`. Spec: [`scrap_gui_editor/docs/states.md`](scrap_gui_editor/docs/states.md). The game never loads it.
 - **Groups** are editor-only (`YourMenu.layout.groups.json`). They are not written into Save.
 - **Autosave** writes `YourMenu.layout.autosave.<time>` next to the layout. That is not the live file. File → Restore Autosave, then Save if you want it live.
 
 ## Updates
 
-On launch the installed app checks the latest **GitHub Release** (semver tag such as `v1.1.0`), not every commit. It downloads in the background, autosaves, then asks to restart. Uncheck **Check GitHub for desktop updates on launch** in Edit → Preferences if you do not want it to contact GitHub. File → Check for Updates does the same check on demand.
+On launch the installed app checks the latest **GitHub Release** (semver tag such as `v1.2.0`), not every commit. It downloads in the background, autosaves, then asks to restart. Uncheck **Check GitHub for desktop updates on launch** in Edit → Preferences if you do not want it to contact GitHub. File → Check for Updates does the same check on demand.
 
 Updates never overwrite a live `.layout`.
 
@@ -61,13 +56,13 @@ Build a local installer without publishing:
 npm run dist
 ```
 
-That writes `dist\ScrappyGUIEditor-Setup-1.1.0.exe`. Do not copy it into a mod folder.
+That writes `dist\ScrappyGUIEditor-Setup-1.2.0.exe`. Do not copy it into a mod folder.
 
 ## Shipping a new EXE
 
 1. Bump `"version"` in `package.json`.
 2. Push `Desktop-Version`.
-3. Tag that commit, for example `v1.1.0`, and push the tag.
-4. GitHub Actions builds the NSIS installer and attaches it to a Release. Auto-update looks at that Release.
+3. Tag that commit, for example `v1.2.0`, and push the tag.
+4. GitHub Actions builds the NSIS installer and publishes a **non-draft** Release. Auto-update only sees published Releases.
 
 More format notes: [`scrap_gui_editor/README.md`](scrap_gui_editor/README.md).
