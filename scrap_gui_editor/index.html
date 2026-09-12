@@ -8,31 +8,14 @@
 </head>
 <body>
   <div id="app">
-    <nav id="menubar" class="menubar" aria-label="Application"></nav>
-    <header class="topbar">
-      <div class="brand">
-        <strong>Scrappy GUI Editor</strong>
-        <span class="local-tag">local only</span>
-      </div>
-      <div class="file-actions">
-        <button id="btn-open-mod" type="button" class="primary">Open mod folder</button>
-        <label class="layout-pick">Layout
-          <select id="layout-select" disabled>
-            <option value="">Open a mod first</option>
-          </select>
-        </label>
-        <button id="btn-open" type="button" class="ghost">Open one file…</button>
-        <input id="file-open" type="file" accept=".layout,.xml" hidden />
-        <button id="btn-save-as" type="button">Save As</button>
-        <button id="btn-save" type="button" class="primary">Save</button>
-        <label class="check" title="When checked, every Save writes a timestamped .bak.layout next to the file first. Remembered for File > Save, Ctrl+S, and this checkbox.">
-          <input id="chk-backup" type="checkbox" checked /> Save with backup
-        </label>
-        <button id="btn-undo" type="button" disabled>Undo</button>
-        <button id="btn-redo" type="button" disabled>Redo</button>
-      </div>
-      <div id="file-name" class="filename">No file loaded</div>
-    </header>
+    <div class="chrome">
+      <nav id="menubar" class="menubar" aria-label="Application"></nav>
+      <label class="layout-pick">Layout
+        <select id="layout-select" disabled>
+          <option value="">Open a mod first</option>
+        </select>
+      </label>
+    </div>
 
     <div id="parse-errors" class="parse-errors hidden"></div>
     <div id="disk-banner" class="disk-banner hidden">
@@ -41,101 +24,68 @@
       <button id="btn-disk-keep" type="button">Keep editor</button>
     </div>
 
-    <section class="toolbar">
-      <button id="btn-preview" type="button" title="Hide editor chrome and preview the layout (F5)">Preview</button>
-      <label>Resolution
-        <select id="preview-res">
-          <option value="1280x720">1280×720</option>
-          <option value="1600x900">1600×900</option>
-          <option value="1920x1080" selected>1920×1080</option>
-          <option value="2560x1440">2560×1440</option>
-          <option value="3440x1440">3440×1440</option>
-          <option value="custom">Custom</option>
-        </select>
-      </label>
-      <label>W <input id="custom-w" type="number" value="1920" min="1" /></label>
-      <label>H <input id="custom-h" type="number" value="1080" min="1" /></label>
-      <label>Scale test
-        <select id="scale-mode">
-          <option value="viewport" selected>Preserve layout units (change viewport only)</option>
-          <option value="uniform">Simulate uniform UI scaling</option>
-        </select>
-      </label>
-      <label>Zoom
-        <select id="zoom">
-          <option value="fit" selected>Fit</option>
-          <option value="25">25%</option>
-          <option value="50">50%</option>
-          <option value="75">75%</option>
-          <option value="100">100%</option>
-          <option value="200">200%</option>
-        </select>
-      </label>
-      <span id="zoom-readout" class="muted">View 50%  (canvas zoom only)</span>
-      <label><input id="chk-grid" type="checkbox" checked /> Grid</label>
-      <label>Grid size <input id="grid-size" type="number" value="8" min="1" /></label>
-      <label><input id="chk-snap" type="checkbox" /> Snap</label>
-      <label><input id="chk-checker" type="checkbox" checked /> Checkerboard</label>
-      <label><input id="chk-hidden" type="checkbox" checked /> Show hidden</label>
-      <label id="tab-filter-wrap" class="hidden" title="Guesses pages from TabCraft / MainTab names. Does not read Lua. Click a Tab… button on the canvas to switch.">Tabs
-        <select id="tab-filter">
-          <option value="all">All (stacked)</option>
-        </select>
-      </label>
-    </section>
-
-    <section class="toolbar thin">
-      <label class="mod-path-label">Mod folder
-        <input id="mod-path" type="text" placeholder="C:\Coding Projects\Testing\RemasteredFrameworkSystems0854-gj" />
-      </label>
-      <button id="btn-open-mod-path" type="button">Load mod</button>
-      <button id="btn-layouts-folder" type="button">Layouts folder…</button>
-      <button id="btn-images-folder" type="button">Images folder…</button>
-      <button id="btn-reload-assets" type="button">Reload Assets</button>
-      <span id="folder-readout" class="muted">Default: Gui/Menu/Layouts and Gui/Menu/Images</span>
-      <button id="btn-assets" type="button" hidden>PNG folder fallback</button>
-      <input id="dir-assets" type="file" webkitdirectory directory multiple hidden />
-      <input id="asset-path" type="hidden" />
-      <button id="btn-asset-path" type="button" hidden>Use path</button>
-      <span class="muted">Samples (no mod images):</span>
-      <button type="button" data-sample="Rfs_Menu.layout">Menu</button>
-      <button type="button" data-sample="Rfs_HandheldHack.layout">Handheld</button>
-      <button type="button" data-sample="Rfs_BotRename.layout">Rename</button>
-      <button type="button" data-sample="Rfs_RechargeBox.layout">Recharge</button>
-      <button type="button" data-sample="Rfs_CraftStation_images.layout">CraftStation + PNG paths</button>
-      <button type="button" data-sample="Rfs_CraftStation_pixels.layout">CraftStation pixels</button>
-    </section>
-
     <main class="workspace" id="workspace">
       <aside class="panel left" id="panel-left">
-        <h2>Hierarchy</h2>
-        <div class="groups-box">
-          <label title="Editor-only. Not written into the layout. Saved beside it as .layout.groups.json">Groups
-            <select id="group-filter">
-              <option value="">(none)</option>
-            </select>
-          </label>
+        <label class="page-pick">Show
+          <select id="left-page">
+            <option value="hierarchy">Hierarchy</option>
+            <option value="groups">Groups</option>
+            <option value="hidden">Hidden</option>
+          </select>
+        </label>
+        <div class="page-body" data-left-page="hierarchy">
+          <div id="hierarchy"></div>
+        </div>
+        <div class="page-body hidden" data-left-page="groups">
+          <p id="groups-empty" class="hint" title="Editor-only. Not written into the layout. Saved beside it as .layout.groups.json">Select two or more named widgets, then Group.</p>
+          <div id="groups-list" class="layers-list"></div>
           <div class="btn-row">
             <button id="btn-group" type="button" title="Group selected widgets (Ctrl+G)">Group</button>
             <button id="btn-ungroup" type="button" title="Remove group, keep widgets (Ctrl+Shift+G)">Ungroup</button>
             <button id="btn-group-rename" type="button">Rename</button>
           </div>
-          <label title="Widgets hidden in the editor only. Does not list layout Visible=false (tabs). Unhide does not write the .layout.">Hidden
-            <select id="hidden-filter">
-              <option value="">(none hidden)</option>
-            </select>
-          </label>
+        </div>
+        <div class="page-body hidden" data-left-page="hidden">
+          <p id="hidden-empty" class="hint" title="Widgets hidden in the editor only. Does not list layout Visible=false (tabs). Unhide does not write the .layout.">Nothing hidden in the editor.</p>
+          <div id="hidden-list" class="layers-list"></div>
           <div class="btn-row">
-            <button id="btn-unhide" type="button" title="Show the picked widget on the canvas again">Unhide</button>
+            <button id="btn-unhide" type="button" title="Show the selected widget on the canvas again">Unhide</button>
             <button id="btn-unhide-all" type="button" title="Clear all editor hides">Unhide all</button>
           </div>
         </div>
-        <p class="hint">Click to select. Right-click for the widget menu. Shift-click multi-select. Alt/Ctrl-click or double-click cycles overlapping widgets.</p>
-        <div id="hierarchy"></div>
       </aside>
       <div class="splitter" id="split-left" data-side="left" title="Drag to resize hierarchy. Double-click resets."></div>
 
       <section class="canvas-wrap">
+        <aside id="tool-rail" class="tool-rail docked" aria-label="Tools">
+          <button type="button" class="tool-grip" id="tool-grip" title="Drag to undock" aria-label="Move toolbox">⋮⋮</button>
+          <button type="button" class="tool-btn is-on" data-tool="select" title="Select (Q)" aria-pressed="true">Sel</button>
+          <button type="button" class="tool-btn" data-tool="box" title="Box select (B)" aria-pressed="false">Box</button>
+          <button type="button" class="tool-btn" data-tool="move" title="Move (W)" aria-pressed="false">Mov</button>
+          <button type="button" class="tool-btn" data-tool="scale" title="Scale (E)" aria-pressed="false">Scl</button>
+          <button type="button" class="tool-dock hidden" id="tool-dock" title="Dock toolbox">Dock</button>
+        </aside>
+        <div id="preview-hud" class="preview-hud hidden">
+          <label>Resolution
+            <select id="preview-res">
+              <option value="1280x720">1280×720</option>
+              <option value="1600x900">1600×900</option>
+              <option value="1920x1080" selected>1920×1080</option>
+              <option value="2560x1440">2560×1440</option>
+              <option value="3440x1440">3440×1440</option>
+              <option value="custom">Custom</option>
+            </select>
+          </label>
+          <label>W <input id="custom-w" type="number" value="1920" min="1" /></label>
+          <label>H <input id="custom-h" type="number" value="1080" min="1" /></label>
+          <label>Scale test
+            <select id="scale-mode">
+              <option value="viewport" selected>Preserve layout units</option>
+              <option value="uniform">Simulate uniform UI scaling</option>
+            </select>
+          </label>
+          <button id="btn-preview" type="button" class="primary">Exit Preview (F5)</button>
+        </div>
         <div id="shot-side" class="shot-side hidden"></div>
         <div id="canvas-scroll">
           <div id="canvas-world" class="checker">
@@ -146,8 +96,11 @@
             <div id="layer-select" class="layer select"></div>
           </div>
         </div>
-        <p class="hint canvas-note">Canvas zoom and resolution previews do not change exported values. Skin chrome is approximated — not claimed pixel-perfect vs Scrap Mechanic.</p>
-        <footer id="status">Local editor ready.</footer>
+        <footer class="status-bar">
+          <span id="tool-mode">Select</span>
+          <span id="file-name" class="filename">No file loaded</span>
+          <span id="status">Local editor ready.</span>
+        </footer>
       </section>
       <div class="splitter" id="split-right" data-side="right" title="Drag to resize properties. Double-click resets."></div>
 
@@ -156,144 +109,140 @@
         <p id="prop-empty" class="hint">Select a widget on the canvas or in the hierarchy.</p>
         <div id="prop-form" class="hidden">
           <label>Name <input id="f-name" type="text" /></label>
-          <label>Type <input id="f-type" type="text" readonly /></label>
+          <p id="f-skin-line" class="muted"></p>
           <p id="f-tab" class="muted"></p>
-          <label>Skin <input id="f-skin" type="text" readonly /></label>
-          <label>Align / anchor <input id="f-align" type="text" placeholder="(none in most RFS files)" /></label>
           <label class="check"><input id="f-visible" type="checkbox" /> Visible</label>
-          <h3>Stacking (sibling order)</h3>
-          <p class="hint">Later siblings draw on top. These buttons move the selection among widgets that share the same parent. Ctrl+[ / Ctrl+] one step; Ctrl+Shift+[ / Ctrl+Shift+] ends.</p>
-          <div class="btn-row">
-            <button id="btn-bring-front" type="button">Bring to front</button>
-            <button id="btn-bring-forward" type="button">Bring forward</button>
-            <button id="btn-send-backward" type="button">Send backward</button>
-            <button id="btn-send-back" type="button">Send to back</button>
-          </div>
-
-          <h3>Layout units (exported)</h3>
-          <div class="xywh">
-            <label>X <input id="f-x" type="number" step="any" /></label>
-            <label>Y <input id="f-y" type="number" step="any" /></label>
-            <label>W <input id="f-w" type="number" step="any" /></label>
-            <label>H <input id="f-h" type="number" step="any" /></label>
-          </div>
-          <p id="f-px" class="muted"></p>
           <p id="overlap-note" class="warn hidden"></p>
 
-          <h3>Resize (canvas pixels)</h3>
-          <p class="hint">Sets width and height. Top-left stays. Select the panel only — buttons keep their pixel size unless “Stretch children…” is on. Fill-the-parent art still grows with the panel.</p>
-          <div class="xywh">
-            <label>W px <input id="f-px-w" type="number" min="1" step="1" /></label>
-            <label>H px <input id="f-px-h" type="number" min="1" step="1" /></label>
-          </div>
-          <button id="btn-apply-px-size" type="button">Apply size to selection</button>
-          <label class="check">
-            <input id="chk-auto-fit-parent" type="checkbox" checked /> Auto-size parent to wrap children
-          </label>
-          <label class="check" title="On: dragging a handle scales the whole selection from its box (widgets move). Off: each selected widget’s own box is resized.">
-            <input id="chk-handle-group-scale" type="checkbox" checked /> Handle drag scales the group
-          </label>
-          <label class="check" title="On: children grow and shrink with this panel (MyGUI default). Off: buttons stay the same pixel size.">
-            <input id="chk-scale-children" type="checkbox" /> Stretch children when this panel resizes
-          </label>
-
-          <h3>Scale % of imported size</h3>
-          <p class="hint">Multiplies the size this widget had when you opened the file. Same percent on width and height. Keep using this when you want to grow or shrink without inventing a new shape.</p>
-          <label>Scale % <input id="f-scale" type="number" step="any" /></label>
-          <p id="scale-readout" class="muted"></p>
-          <p id="distort-warn" class="warn hidden">Width and height are scaled by different percentages.</p>
-          <div class="btn-row">
-            <button id="btn-scale-up" type="button">Scale Up</button>
-            <button id="btn-scale-down" type="button">Scale Down</button>
-            <button id="btn-reset-size" type="button">Reset to Original Size</button>
-          </div>
-          <label class="check"><input id="chk-aspect" type="checkbox" /> Lock Aspect Ratio</label>
-          <div class="btn-row">
-            <button id="btn-fit-parent" type="button">Fit to Parent</button>
-            <button id="btn-center" type="button">Center in Parent</button>
-            <button id="btn-center-h" type="button">Center Horizontally</button>
-            <button id="btn-center-v" type="button">Center Vertically</button>
-          </div>
-          <label>Group scale % <input id="group-scale" type="number" value="50" step="any" /></label>
-          <button id="btn-group-scale" type="button">Apply Group Scale</button>
-
-          <h3>Text / colour</h3>
-          <label>Caption / text <textarea id="f-caption" rows="3"></textarea></label>
-          <label>TextAlign <input id="f-textalign" type="text" /></label>
-          <label>FontName <input id="f-font" type="text" /></label>
-          <label>Colour <input id="f-colour" type="text" placeholder="1 1 1" /></label>
-          <label>TextColour <input id="f-textcolour" type="text" placeholder="1 0.78 0.23" /></label>
-          <label>Alpha <input id="f-alpha" type="text" /></label>
-
-          <h3>Image</h3>
-          <label>ImageTexture <input id="f-image" type="text" /></label>
-          <p id="f-img-info" class="muted"></p>
-          <label class="check"><input id="f-keep-aspect" type="checkbox" /> ImageKeepAspect (layout contain/fit)</label>
-          <label>Editor image display
-            <select id="img-preview-mode">
-              <option value="layout" selected>Use layout (ImageKeepAspect)</option>
-              <option value="stretch">Stretch (exportable as KeepAspect false)</option>
-              <option value="contain">Contain / Fit (exportable as KeepAspect true)</option>
-              <option value="cover">Cover / Fill — preview only</option>
-              <option value="native">Native size — preview only</option>
-              <option value="tile">Tile — preview only</option>
+          <label class="page-pick">Page
+            <select id="right-page">
+              <option value="transform">Transform</option>
+              <option value="layers">Layers</option>
+              <option value="text">Text</option>
+              <option value="image">Image</option>
+              <option value="overlay">Overlay</option>
+              <option value="raw">Raw</option>
             </select>
           </label>
-          <p id="preview-only-warn" class="warn hidden">This image display mode is an editor preview only. It is not written into the .layout file.</p>
-          <div class="btn-row">
-            <button id="btn-replace-image" type="button">Replace image…</button>
-            <input id="file-image" type="file" accept="image/png" hidden />
-            <button id="btn-save-image-as" type="button">Save PNG As</button>
-            <button id="btn-fit-image" type="button">Fit Image to Widget</button>
-            <button id="btn-native-image" type="button">Set Widget to Image Native Size</button>
+
+          <div class="page-body" data-right-page="transform">
+            <div class="xywh">
+              <label>X <input id="f-x" type="number" step="any" /></label>
+              <label>Y <input id="f-y" type="number" step="any" /></label>
+              <label>W <input id="f-w" type="number" step="any" /></label>
+              <label>H <input id="f-h" type="number" step="any" /></label>
+            </div>
+            <p id="f-px" class="muted"></p>
+            <div class="xywh">
+              <label>W px <input id="f-px-w" type="number" min="1" step="1" /></label>
+              <label>H px <input id="f-px-h" type="number" min="1" step="1" /></label>
+            </div>
+            <button id="btn-apply-px-size" type="button">Apply size</button>
+            <label>Scale % <input id="f-scale" type="number" step="any" /></label>
+            <p id="scale-readout" class="muted"></p>
+            <p id="distort-warn" class="warn hidden">Width and height are scaled by different percentages.</p>
+            <div class="btn-row">
+              <button id="btn-scale-up" type="button">Scale Up</button>
+              <button id="btn-scale-down" type="button">Scale Down</button>
+              <button id="btn-reset-size" type="button">Reset size</button>
+            </div>
+            <label class="check"><input id="chk-aspect" type="checkbox" /> Lock Aspect Ratio</label>
+            <label class="check">
+              <input id="chk-auto-fit-parent" type="checkbox" checked /> Auto-size parent to wrap children
+            </label>
+            <label class="check" title="On: children grow with this panel. Off: buttons keep their pixel size.">
+              <input id="chk-scale-children" type="checkbox" /> Stretch children when this panel resizes
+            </label>
+            <div class="btn-row">
+              <button id="btn-fit-parent" type="button">Fit to Parent</button>
+              <button id="btn-center" type="button">Center</button>
+              <button id="btn-center-h" type="button">Center H</button>
+              <button id="btn-center-v" type="button">Center V</button>
+            </div>
+            <label>Align / anchor <input id="f-align" type="text" placeholder="(none in most RFS files)" /></label>
           </div>
 
-          <h3>Original raw properties</h3>
-          <pre id="raw-props" class="raw"></pre>
-          <h3>Unknown properties (read-only)</h3>
-          <pre id="unknown-props" class="raw"></pre>
-          <h3>Unknown attributes (preserved)</h3>
-          <pre id="extra-attrs" class="raw"></pre>
-        </div>
+          <div class="page-body hidden" data-right-page="layers">
+            <p id="layers-empty" class="hint">Select a panel to see what is inside it.</p>
+            <div id="layers-list" class="layers-list"></div>
+            <div class="btn-row">
+              <button id="btn-bring-front" type="button">Front</button>
+              <button id="btn-bring-forward" type="button">Forward</button>
+              <button id="btn-send-backward" type="button">Backward</button>
+              <button id="btn-send-back" type="button">Back</button>
+            </div>
+          </div>
 
-        <h2>Calibration</h2>
-        <label>In-game screenshot <input id="shot-file" type="file" accept="image/*" /></label>
-        <label>Screenshot opacity <input id="shot-opacity" type="range" min="0" max="100" value="45" /></label>
-        <label>Mode
-          <select id="shot-mode">
-            <option value="overlay" selected>Overlay behind canvas</option>
-            <option value="side">Side by side</option>
-          </select>
-        </label>
-        <button id="btn-clear-shot" type="button">Clear screenshot</button>
-        <p class="hint">Screenshots are never included in exported .layout files.</p>
+          <div class="page-body hidden" data-right-page="text">
+            <label>Caption / text <textarea id="f-caption" rows="3"></textarea></label>
+            <label>TextAlign <input id="f-textalign" type="text" /></label>
+            <label>FontName <input id="f-font" type="text" /></label>
+            <label>Colour <input id="f-colour" type="text" placeholder="1 1 1" /></label>
+            <label>TextColour <input id="f-textcolour" type="text" placeholder="1 0.78 0.23" /></label>
+            <label>Alpha <input id="f-alpha" type="text" /></label>
+          </div>
 
-        <h2>Reference rectangle</h2>
-        <label class="check"><input id="ref-on" type="checkbox" /> Show reference size overlay</label>
-        <div class="xywh">
-          <label>X <input id="ref-x" type="number" value="200" /></label>
-          <label>Y <input id="ref-y" type="number" value="80" /></label>
-          <label>W <input id="ref-w" type="number" value="800" /></label>
-          <label>H <input id="ref-h" type="number" value="600" /></label>
+          <div class="page-body hidden" data-right-page="image">
+            <label>ImageTexture <input id="f-image" type="text" /></label>
+            <p id="f-img-info" class="muted"></p>
+            <label class="check"><input id="f-keep-aspect" type="checkbox" /> ImageKeepAspect</label>
+            <div class="btn-row">
+              <button id="btn-replace-image" type="button">Replace image…</button>
+              <button id="btn-save-image-as" type="button">Save PNG As</button>
+              <button id="btn-fit-image" type="button">Fit Image to Widget</button>
+              <button id="btn-native-image" type="button">Set Widget to Image Native Size</button>
+            </div>
+          </div>
+
+          <div class="page-body hidden" data-right-page="overlay">
+            <label>In-game screenshot <input id="shot-file" type="file" accept="image/*" /></label>
+            <label>Screenshot opacity <input id="shot-opacity" type="range" min="0" max="100" value="45" /></label>
+            <label>Mode
+              <select id="shot-mode">
+                <option value="overlay" selected>Overlay behind canvas</option>
+                <option value="side">Side by side</option>
+              </select>
+            </label>
+            <button id="btn-clear-shot" type="button">Clear screenshot</button>
+            <p class="hint">Screenshots are never included in exported .layout files.</p>
+            <label class="check"><input id="ref-on" type="checkbox" /> Show reference size overlay</label>
+            <div class="xywh">
+              <label>X <input id="ref-x" type="number" value="200" /></label>
+              <label>Y <input id="ref-y" type="number" value="80" /></label>
+              <label>W <input id="ref-w" type="number" value="800" /></label>
+              <label>H <input id="ref-h" type="number" value="600" /></label>
+            </div>
+            <button id="btn-snap-ref" type="button">Snap selection to rectangle</button>
+          </div>
+
+          <div class="page-body hidden" data-right-page="raw">
+            <h3>Original raw properties</h3>
+            <pre id="raw-props" class="raw"></pre>
+            <h3>Unknown properties (read-only)</h3>
+            <pre id="unknown-props" class="raw"></pre>
+            <h3>Unknown attributes (preserved)</h3>
+            <pre id="extra-attrs" class="raw"></pre>
+          </div>
         </div>
-        <button id="btn-snap-ref" type="button">Snap selection to rectangle</button>
       </aside>
     </main>
 
-    <div id="drop-mask">Drop a .layout, or paste a mod folder path and click Load mod</div>
+    <div id="drop-mask">Drop a .layout</div>
   </div>
+
+  <input id="file-open" type="file" accept=".layout,.xml" hidden />
+  <input id="file-image" type="file" accept="image/png" hidden />
+  <input id="dir-assets" type="file" webkitdirectory directory multiple hidden />
+  <input id="asset-path" type="hidden" />
 
   <div id="modal" class="modal hidden">
     <div class="modal-card">
-      <h2 id="modal-title">XML changes</h2>
-      <p id="modal-hint" class="hint">Review the exact source comparison before writing a file.</p>
-      <pre id="diff-view" class="diff"></pre>
-      <label id="backup-modal-row" class="check">
-        <input id="chk-backup-modal" type="checkbox" checked /> Save with backup
-      </label>
+      <h2 id="modal-title">Dialog</h2>
+      <p id="modal-hint" class="hint"></p>
+      <pre id="diff-view" class="diff hidden"></pre>
       <div class="btn-row">
         <button id="btn-cancel-save" type="button">Cancel</button>
-        <button id="btn-confirm-save" type="button" class="primary">Save</button>
+        <button id="btn-confirm-save" type="button" class="primary">OK</button>
       </div>
     </div>
   </div>

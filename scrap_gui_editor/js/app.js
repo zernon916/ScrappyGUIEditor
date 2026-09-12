@@ -1,5 +1,5 @@
 import { parseLayout, applyGeometry, setProp, setWidgetName, setAttr, walkWidgets, getProp, reorderWidgetElements, cloneXmlNode, extractWidgetXml, insertWidgetElement, insertXmlNodes, createWidget, buildWidget } from "./layout-parser.js";
-import { exportLayoutXml, unifiedDiff, backupName } from "./exporter.js";
+import { exportLayoutXml } from "./exporter.js";
 import { History, snapshotGeometry, restoreGeometry } from "./history.js";
 import {
   computeRects,
@@ -13,7 +13,7 @@ import {
   isXmlHidden,
   paintOrderList,
 } from "./renderer.js";
-import { Selection, hitTestAll, boundingBox, renderSelectionOverlay, resizeBox, scaleRectsFromBox, resizeEachRects } from "./selection.js";
+import { Selection, hitTestAll, boundingBox, renderSelectionOverlay, resizeBox, scaleRectsFromBox, resizeEachRects, boxHits } from "./selection.js";
 import { createMenuController, widgetMenuItems, canvasMenuItems, hierarchyMenuItems, menuBarSpec } from "./menus.js";
 import { detectTabIds, isOnInactiveTab, tabIdFromButton, tabOwner, tabOwnerLabel, tabLabel, parseTabMap } from "./tabs.js";
 import { parseGroups, serializeGroups, uniqueGroupId, matchingGroupId, renameGroupMember } from "./groups.js";
@@ -28,6 +28,8 @@ const PRESETS = [
   [2560, 1440],
   [3440, 1440],
 ];
+
+const TOOL_LABELS = { select: "Select", box: "Box select", move: "Move", scale: "Scale" };
 
 const state = {
   parsed: null,
@@ -58,8 +60,13 @@ const state = {
   showHidden: true,
   aspectLock: false,
   scaleChildren: false,
-  handleScaleGroup: true,
+  handleScaleGroup: false,
   autoFitParent: true,
+  tool: "select",
+  leftCollapsed: false,
+  rightCollapsed: false,
+  leftPage: "hierarchy",
+  rightPage: "transform",
   imagePreviewMode: "layout",
   screenshot: { url: null, opacity: 0.45, mode: "overlay" },
   refOverlay: { on: false, x: 200, y: 80, w: 800, h: 600 },
@@ -120,49 +127,21 @@ function init() {
 
 function cacheEls() {
   [
-    "btn-open-mod",
-    "btn-open-mod-path",
-    "btn-layouts-folder",
-    "btn-images-folder",
-    "folder-readout",
-    "mod-path",
     "layout-select",
-    "btn-open",
-    "file-open",
-    "btn-save-as",
-    "btn-save",
-    "chk-backup",
-    "chk-backup-modal",
-    "btn-undo",
-    "btn-redo",
-    "btn-assets",
-    "dir-assets",
-    "asset-path",
-    "btn-asset-path",
-    "btn-reload-assets",
-    "file-name",
-    "parse-errors",
-    "preview-res",
-    "custom-w",
-    "custom-h",
-    "scale-mode",
-    "zoom",
-    "chk-grid",
-    "grid-size",
-    "chk-snap",
-    "chk-checker",
-    "chk-hidden",
-    "tab-filter-wrap",
-    "tab-filter",
-    "group-filter",
+    "left-page",
+    "right-page",
+    "groups-empty",
+    "groups-list",
     "btn-group",
     "btn-ungroup",
     "btn-group-rename",
-    "hidden-filter",
+    "hidden-empty",
+    "hidden-list",
     "btn-unhide",
     "btn-unhide-all",
     "chk-aspect",
     "chk-scale-children",
+    "chk-auto-fit-parent",
     "hierarchy",
     "canvas-scroll",
     "canvas-world",
@@ -176,9 +155,8 @@ function cacheEls() {
     "prop-form",
     "sel-summary",
     "f-name",
-    "f-type",
+    "f-skin-line",
     "f-tab",
-    "f-skin",
     "f-align",
     "f-visible",
     "btn-bring-front",
@@ -193,15 +171,12 @@ function cacheEls() {
     "f-px-w",
     "f-px-h",
     "btn-apply-px-size",
-    "chk-handle-group-scale",
-    "chk-auto-fit-parent",
     "overlap-note",
     "f-scale",
     "f-caption",
     "f-image",
     "f-img-info",
     "f-keep-aspect",
-    "img-preview-mode",
     "f-colour",
     "f-textcolour",
     "f-alpha",
@@ -209,6 +184,7 @@ function cacheEls() {
     "f-font",
     "raw-props",
     "unknown-props",
+    "extra-attrs",
     "btn-scale-up",
     "btn-scale-down",
     "btn-reset-size",
@@ -218,8 +194,6 @@ function cacheEls() {
     "btn-center",
     "btn-center-h",
     "btn-center-v",
-    "btn-group-scale",
-    "group-scale",
     "file-image",
     "btn-replace-image",
     "btn-save-image-as",
@@ -233,6 +207,23 @@ function cacheEls() {
     "ref-x",
     "ref-y",
     "btn-snap-ref",
+    "file-open",
+    "dir-assets",
+    "asset-path",
+    "parse-errors",
+    "preview-res",
+    "custom-w",
+    "custom-h",
+    "scale-mode",
+    "preview-hud",
+    "btn-preview",
+    "tool-rail",
+    "tool-grip",
+    "tool-dock",
+    "tool-mode",
+    "layers-empty",
+    "layers-list",
+    "file-name",
     "modal",
     "modal-hint",
     "diff-view",
@@ -246,12 +237,13 @@ function cacheEls() {
     "disk-banner-text",
     "btn-disk-reload",
     "btn-disk-keep",
-    "btn-preview",
     "dialog",
     "dialog-card",
     "dialog-title",
     "dialog-body",
     "dialog-actions",
+    "panel-left",
+    "panel-right",
   ].forEach((id) => {
     els[id] = $(id);
     if (!els[id]) throw new Error("Missing element #" + id);
@@ -259,35 +251,16 @@ function cacheEls() {
 }
 
 function bindUi() {
-  els["btn-open"].addEventListener("click", () => els["file-open"].click());
   els["file-open"].addEventListener("change", async (e) => {
     const f = e.target.files[0];
     if (f) await loadFile(f);
     e.target.value = "";
   });
-  els["btn-open-mod"].addEventListener("click", pickModFolder);
-  els["btn-open-mod-path"].addEventListener("click", () => openMod(els["mod-path"].value.trim()));
-  els["btn-layouts-folder"].addEventListener("click", () => pickCustomFolder("layouts"));
-  els["btn-images-folder"].addEventListener("click", () => pickCustomFolder("images"));
-  els["mod-path"].addEventListener("keydown", (e) => {
-    if (e.key === "Enter") openMod(els["mod-path"].value.trim());
-  });
   els["layout-select"].addEventListener("change", onLayoutPicked);
-  const savedMod = localStorage.getItem("smLayoutEditor.modPath");
-  if (savedMod) els["mod-path"].value = savedMod;
-  els["btn-save-as"].addEventListener("click", () => beginExport(false));
-  els["btn-save"].addEventListener("click", () => beginExport(true));
-  els["chk-backup"].addEventListener("change", () => setSaveWithBackup(els["chk-backup"].checked));
-  els["chk-backup-modal"].addEventListener("change", () => setSaveWithBackup(els["chk-backup-modal"].checked));
-  els["btn-undo"].addEventListener("click", () => undo());
-  els["btn-redo"].addEventListener("click", () => redo());
-  els["btn-assets"].addEventListener("click", () => els["dir-assets"].click());
   els["dir-assets"].addEventListener("change", async (e) => {
     await indexAssetFiles([...e.target.files]);
     e.target.value = "";
   });
-  els["btn-asset-path"].addEventListener("click", () => setAssetPath(els["asset-path"].value.trim()));
-  els["btn-reload-assets"].addEventListener("click", reloadAssets);
   els["preview-res"].addEventListener("change", onPreviewRes);
   els["custom-w"].addEventListener("change", onCustomRes);
   els["custom-h"].addEventListener("change", onCustomRes);
@@ -295,51 +268,23 @@ function bindUi() {
     state.scaleMode = els["scale-mode"].value;
     redraw();
   });
-  els["zoom"].addEventListener("change", () => {
-    state.fitZoom = els["zoom"].value === "fit";
-    if (!state.fitZoom) state.zoom = Number(els["zoom"].value) / 100;
-    applyZoom();
+  els["left-page"].addEventListener("change", () => {
+    state.leftPage = els["left-page"].value;
+    applyPanelPages();
+    savePrefs({ leftPage: state.leftPage });
   });
-  els["chk-grid"].addEventListener("change", () => {
-    state.showGrid = els["chk-grid"].checked;
-    refreshCanvasChrome();
-  });
-  els["grid-size"].addEventListener("change", () => {
-    state.gridSize = Math.max(1, Number(els["grid-size"].value) || 8);
-    refreshCanvasChrome();
-  });
-  els["chk-snap"].addEventListener("change", () => {
-    state.snap = els["chk-snap"].checked;
-  });
-  els["chk-checker"].addEventListener("change", () => {
-    state.checker = els["chk-checker"].checked;
-    refreshCanvasChrome();
-  });
-  els["chk-hidden"].addEventListener("change", () => {
-    state.showHidden = els["chk-hidden"].checked;
-    redraw();
-  });
-  els["tab-filter"].addEventListener("change", () => {
-    state.layoutTab = els["tab-filter"].value || "all";
-    redraw();
-    refreshMenubar();
-  });
-  els["group-filter"].addEventListener("change", () => {
-    selectGroup(els["group-filter"].value);
+  els["right-page"].addEventListener("change", () => {
+    state.rightPage = els["right-page"].value;
+    applyPanelPages();
+    savePrefs({ rightPage: state.rightPage });
   });
   els["btn-group"].addEventListener("click", () => runCommand("groupSel"));
   els["btn-ungroup"].addEventListener("click", () => runCommand("ungroupSel"));
   els["btn-group-rename"].addEventListener("click", () => runCommand("renameGroup"));
-  els["hidden-filter"].addEventListener("change", () => {
-    selectHiddenWidget(els["hidden-filter"].value);
-  });
   els["btn-unhide"].addEventListener("click", () => runCommand("unhideListed"));
   els["btn-unhide-all"].addEventListener("click", () => runCommand("showAllHidden"));
   els["chk-aspect"].addEventListener("change", () => {
     state.aspectLock = els["chk-aspect"].checked;
-  });
-  els["chk-handle-group-scale"].addEventListener("change", () => {
-    state.handleScaleGroup = els["chk-handle-group-scale"].checked;
   });
   els["chk-auto-fit-parent"].addEventListener("change", () => {
     state.autoFitParent = els["chk-auto-fit-parent"].checked;
@@ -356,10 +301,6 @@ function bindUi() {
         ? "Children will stretch when you resize this panel."
         : "Buttons keep their pixel size when you resize the panel."
     );
-  });
-  els["img-preview-mode"].addEventListener("change", () => {
-    state.imagePreviewMode = els["img-preview-mode"].value;
-    redraw();
   });
 
   ["f-x", "f-y", "f-w", "f-h"].forEach((id) => {
@@ -397,7 +338,6 @@ function bindUi() {
   els["btn-center"].addEventListener("click", () => centerInParent(true, true));
   els["btn-center-h"].addEventListener("click", () => centerInParent(true, false));
   els["btn-center-v"].addEventListener("click", () => centerInParent(false, true));
-  els["btn-group-scale"].addEventListener("click", applyGroupScale);
   els["btn-replace-image"].addEventListener("click", () => els["file-image"].click());
   els["file-image"].addEventListener("change", onReplaceImage);
   els["btn-save-image-as"].addEventListener("click", saveReplacementImage);
@@ -428,7 +368,7 @@ function bindUi() {
   els["btn-snap-ref"].addEventListener("click", snapToRef);
   els["btn-cancel-save"].addEventListener("click", () => els.modal.classList.add("hidden"));
   els["btn-confirm-save"].addEventListener("click", confirmSave);
-  els["btn-preview"].addEventListener("click", () => setLayoutPreview(!state.layoutPreview));
+  els["btn-preview"].addEventListener("click", () => setLayoutPreview(false));
   els["btn-disk-reload"].addEventListener("click", reloadDiskChanges);
   els["btn-disk-keep"].addEventListener("click", keepDiskChanges);
   els.dialog.addEventListener("click", (ev) => {
@@ -458,9 +398,178 @@ function bindUi() {
     if (pngs.length) await indexAssetFiles(pngs);
   });
 
-  document.querySelectorAll("[data-sample]").forEach((btn) => {
-    btn.addEventListener("click", () => loadSample(btn.dataset.sample));
+  bindToolRail();
+  applyPanelPages();
+  applyCollapsedPanels();
+  setTool(state.tool, true);
+}
+
+function setTool(tool, silent) {
+  if (!["select", "box", "move", "scale"].includes(tool)) tool = "select";
+  state.tool = tool;
+  applyToolChrome();
+  refreshMenubar();
+  redraw();
+  if (!silent) {
+    savePrefs({ tool: state.tool });
+    setStatus(TOOL_LABELS[tool] + " tool.");
+  }
+}
+
+function applyToolChrome() {
+  const wrap = document.querySelector(".canvas-wrap");
+  if (wrap) {
+    wrap.classList.remove("tool-select", "tool-box", "tool-move", "tool-scale");
+    wrap.classList.add("tool-" + state.tool);
+    wrap.classList.toggle("is-dragging", !!(state.drag && state.drag.kind === "move"));
+  }
+  document.querySelectorAll(".tool-btn[data-tool]").forEach((btn) => {
+    const on = btn.dataset.tool === state.tool;
+    btn.classList.toggle("is-on", on);
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
   });
+  if (els["tool-mode"]) els["tool-mode"].textContent = TOOL_LABELS[state.tool] || "Select";
+}
+
+function applyPanelPages() {
+  const left = state.leftPage || "hierarchy";
+  const right = state.rightPage || "transform";
+  if (els["left-page"] && els["left-page"].value !== left) els["left-page"].value = left;
+  if (els["right-page"] && els["right-page"].value !== right) els["right-page"].value = right;
+  document.querySelectorAll("[data-left-page]").forEach((el) => {
+    el.classList.toggle("hidden", el.getAttribute("data-left-page") !== left);
+  });
+  document.querySelectorAll("[data-right-page]").forEach((el) => {
+    el.classList.toggle("hidden", el.getAttribute("data-right-page") !== right);
+  });
+}
+
+function applyCollapsedPanels() {
+  const app = document.getElementById("app");
+  if (!app) return;
+  app.classList.toggle("left-collapsed", !!state.leftCollapsed);
+  app.classList.toggle("right-collapsed", !!state.rightCollapsed);
+  if (state.fitZoom) applyZoom();
+}
+
+function toggleLeftPanel() {
+  state.leftCollapsed = !state.leftCollapsed;
+  applyCollapsedPanels();
+  savePrefs({ leftCollapsed: state.leftCollapsed });
+  setStatus(state.leftCollapsed ? "Hierarchy panel hidden (N)." : "Hierarchy panel shown.");
+}
+
+function toggleRightPanel() {
+  state.rightCollapsed = !state.rightCollapsed;
+  applyCollapsedPanels();
+  savePrefs({ rightCollapsed: state.rightCollapsed });
+  setStatus(state.rightCollapsed ? "Properties panel hidden (Ctrl+N)." : "Properties panel shown.");
+}
+
+function bindToolRail() {
+  const rail = els["tool-rail"];
+  if (!rail) return;
+  rail.querySelectorAll(".tool-btn[data-tool]").forEach((btn) => {
+    btn.addEventListener("click", () => setTool(btn.dataset.tool));
+  });
+  const grip = els["tool-grip"];
+  const dock = els["tool-dock"];
+  let drag = null;
+  function place(x, y) {
+    const w = rail.offsetWidth;
+    const h = rail.offsetHeight;
+    const nx = Math.max(8, Math.min(window.innerWidth - w - 8, x));
+    const ny = Math.max(8, Math.min(window.innerHeight - h - 8, y));
+    rail.style.left = nx + "px";
+    rail.style.top = ny + "px";
+    return { x: nx, y: ny };
+  }
+  function undockAt(x, y) {
+    rail.classList.remove("docked");
+    rail.classList.add("floating");
+    dock.classList.remove("hidden");
+    const pos = place(x, y);
+    savePrefs({ toolDocked: false, toolX: pos.x, toolY: pos.y });
+  }
+  function dockRail() {
+    rail.classList.add("docked");
+    rail.classList.remove("floating");
+    dock.classList.add("hidden");
+    rail.style.left = "";
+    rail.style.top = "";
+    savePrefs({ toolDocked: true });
+  }
+  grip.addEventListener("mousedown", (ev) => {
+    if (ev.button !== 0) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    const r = rail.getBoundingClientRect();
+    if (rail.classList.contains("docked")) undockAt(r.left, r.top);
+    drag = { dx: ev.clientX - r.left, dy: ev.clientY - r.top };
+  });
+  window.addEventListener("mousemove", (ev) => {
+    if (!drag) return;
+    const pos = place(ev.clientX - drag.dx, ev.clientY - drag.dy);
+    savePrefs({ toolDocked: false, toolX: pos.x, toolY: pos.y });
+  });
+  window.addEventListener("mouseup", () => {
+    drag = null;
+  });
+  dock.addEventListener("click", dockRail);
+  try {
+    const prefs = JSON.parse(localStorage.getItem("smLayoutEditor.prefs") || "{}");
+    if (prefs.toolDocked === false && Number.isFinite(prefs.toolX) && Number.isFinite(prefs.toolY)) {
+      rail.classList.remove("docked");
+      rail.classList.add("floating");
+      dock.classList.remove("hidden");
+      place(prefs.toolX, prefs.toolY);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+function overlayOptions() {
+  const marquee = state.drag && state.drag.kind === "box" ? state.drag.marquee : null;
+  return {
+    handles: state.tool === "scale" ? "scale" : "single",
+    marquee,
+  };
+}
+
+function fillLayersList() {
+  const list = els["layers-list"];
+  const empty = els["layers-empty"];
+  if (!list || !empty) return;
+  list.innerHTML = "";
+  const w = primaryWidget();
+  if (!w) {
+    empty.classList.remove("hidden");
+    empty.textContent = "Select a panel to see what is inside it.";
+    return;
+  }
+  const parent = w.children && w.children.length ? w : w.parent;
+  const kids = parent && parent.children ? [...parent.children].reverse() : [];
+  if (!kids.length) {
+    empty.classList.remove("hidden");
+    empty.textContent = "Select a panel to see what is inside it.";
+    return;
+  }
+  empty.classList.add("hidden");
+  for (const c of kids) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "layer-row";
+    if (state.selection.has(c.id)) btn.classList.add("is-selected");
+    if (c.locked) btn.classList.add("is-locked");
+    if (c.editorHidden) btn.classList.add("is-hidden");
+    btn.innerHTML = `<span class="t-type">${escapeHtml(c.type)}</span><span class="t-name">${escapeHtml(c.name || "(unnamed)")}</span>`;
+    btn.addEventListener("click", () => {
+      state.selection.set(c.id);
+      afterSelect();
+    });
+    list.appendChild(btn);
+  }
 }
 
 function bindPanelResize() {
@@ -538,7 +647,7 @@ function bindPanelResize() {
 }
 
 async function pickModFolder() {
-  const start = els["mod-path"].value.trim() || localStorage.getItem("smLayoutEditor.modPath") || "";
+  const start = state.modPath || localStorage.getItem("smLayoutEditor.modPath") || "";
   setStatus("Choose the mod folder in the Windows dialog (the folder that contains Gui)…");
   try {
     const data = await host.pickMod(start);
@@ -550,12 +659,10 @@ async function pickModFolder() {
       setStatus("Folder pick cancelled.");
       return;
     }
-    els["mod-path"].value = data.path;
     await openMod(data.path);
   } catch (err) {
     showErrors([
-      "Could not open a folder dialog. Leave start_editor.bat running, or paste the mod path and click Load mod. " +
-        err.message,
+      "Could not open a folder dialog. File → Open Mod Folder, or Edit → Preferences. " + err.message,
     ]);
   }
 }
@@ -591,7 +698,6 @@ async function openMod(path, keepLayout = false) {
     state.assetPath = state.imagesDir;
     state.assetList = data.images || [];
     localStorage.setItem("smLayoutEditor.modPath", data.mod);
-    els["mod-path"].value = data.mod;
     const selected = keepLayout ? state.filePath : "";
     fillLayoutDropdown(selected);
     fillFolderReadout();
@@ -615,9 +721,7 @@ async function openMod(path, keepLayout = false) {
 }
 
 function fillFolderReadout() {
-  const layout = state.layoutsDir || "(not set — click Layouts folder…)";
-  const images = state.imagesDir || "(not set — click Images folder…)";
-  els["folder-readout"].textContent = `Layouts: ${layout}   |   Images: ${images}`;
+  /* Paths live in Preferences. */
 }
 
 async function pickCustomFolder(kind) {
@@ -766,6 +870,7 @@ function openXml(text, fileName, filePath, fileObj) {
   state.selection.clear();
   rebuildIndex();
   els["file-name"].textContent = fileName;
+  document.title = fileName + " — Scrappy GUI Editor";
   showErrors(parsed.errors, parsed.warnings);
   if (!parsed.ok && !parsed.roots.length) {
     setStatus("Import failed. See parse errors.");
@@ -849,7 +954,8 @@ function redraw() {
     els.hierarchy.innerHTML = "";
   }
   refreshHiddenFilter();
-  renderSelectionOverlay(els["layer-select"], state.selection.ids, rects, { handles: true });
+  refreshGroupFilter();
+  renderSelectionOverlay(els["layer-select"], state.selection.ids, rects, overlayOptions());
   fillProps();
   applyZoom();
 }
@@ -900,7 +1006,6 @@ function applyZoom() {
     state.zoom = z;
   }
   els["canvas-world"].style.transform = `scale(${z})`;
-  document.getElementById("zoom-readout").textContent = `View ${Math.round(z * 100)}%  (canvas zoom only)`;
 }
 
 function afterSelect() {
@@ -958,8 +1063,10 @@ function snapVal(v) {
 function onCanvasDown(ev) {
   if (!state.parsed) return;
   if (ev.button !== 0) return;
-  if (ev.target.closest && (ev.target.closest(".panel") || ev.target.closest(".menubar"))) return;
+  if (ev.target.closest && (ev.target.closest(".panel") || ev.target.closest(".menubar") || ev.target.closest(".tool-rail") || ev.target.closest(".preview-hud") || ev.target.closest(".chrome"))) return;
   if (state.menus) state.menus.hideAll();
+  const ae = document.activeElement;
+  if (ae && ae !== document.body && typeof ae.blur === "function") ae.blur();
   const handle = ev.target.dataset && ev.target.dataset.handle;
   const p = worldPoint(ev);
   const { rects } = currentRects();
@@ -969,7 +1076,7 @@ function onCanvasDown(ev) {
       return;
     }
     const box = boundingBox(state.selection.ids, rects);
-    const widgets = scaleTargets().filter((w) => !w.locked);
+    const widgets = (state.tool === "scale" ? scaleTargets() : selectedWidgets()).filter((w) => !w.locked);
     state.drag = {
       kind: "resize",
       handle,
@@ -983,11 +1090,25 @@ function onCanvasDown(ev) {
     ev.preventDefault();
     return;
   }
+  if (state.tool === "box") {
+    state.drag = {
+      kind: "box",
+      startX: p.x,
+      startY: p.y,
+      marquee: { x1: p.x, y1: p.y, x2: p.x, y2: p.y },
+      shift: ev.shiftKey,
+      moved: false,
+    };
+    ev.preventDefault();
+    rebuildRectsOnly();
+    return;
+  }
   const hits = hitTestAll(state.parsed.roots, rects, p.x, p.y, state.showHidden, canHitWidget);
   const cycle = ev.altKey || ev.ctrlKey;
   state.selection.selectFromHits(hits, ev.shiftKey, cycle, rects);
   afterSelect();
   if (!ev.shiftKey) maybeSwitchLayoutTab(primaryWidget());
+  if (state.tool !== "move") return;
   if (state.selection.ids.length) {
     if (selectedWidgets().every((w) => w.locked)) {
       setStatus("Locked — unlock from the right-click menu.");
@@ -1002,6 +1123,7 @@ function onCanvasDown(ev) {
       snaps: snapshotGeometry(geometrySet(widgets)),
       moved: false,
     };
+    applyToolChrome();
   }
 }
 
@@ -1021,6 +1143,14 @@ function onCanvasDblClick(ev) {
 function onCanvasMove(ev) {
   if (!state.drag) return;
   const p = worldPoint(ev);
+  if (state.drag.kind === "box") {
+    state.drag.marquee.x2 = p.x;
+    state.drag.marquee.y2 = p.y;
+    state.drag.moved = Math.abs(p.x - state.drag.startX) > 4 || Math.abs(p.y - state.drag.startY) > 4;
+    const { rects } = currentRects();
+    renderSelectionOverlay(els["layer-select"], state.selection.ids, rects, overlayOptions());
+    return;
+  }
   const dx = p.x - state.drag.startX;
   const dy = p.y - state.drag.startY;
   restoreGeometry(state.byId, state.drag.snaps);
@@ -1049,7 +1179,8 @@ function onCanvasMove(ev) {
     }
   } else if (state.drag.kind === "resize") {
     const lock = state.aspectLock || ev.shiftKey;
-    if (!state.handleScaleGroup && widgets.length) {
+    const groupScale = state.tool === "scale";
+    if (!groupScale && widgets.length) {
       const next = resizeEachRects(
         widgets.map((w) => w.id),
         rects,
@@ -1088,7 +1219,7 @@ function onCanvasMove(ev) {
 function rebuildRectsOnly() {
   const { rects } = currentRects();
   renderWidgets(els["layer-widgets"], state.parsed.roots, rects, widgetRenderOptions());
-  renderSelectionOverlay(els["layer-select"], state.selection.ids, rects, { handles: true });
+  renderSelectionOverlay(els["layer-select"], state.selection.ids, rects, overlayOptions());
   fillProps();
 }
 
@@ -1096,7 +1227,27 @@ function onCanvasUp() {
   if (!state.drag) return;
   const drag = state.drag;
   state.drag = null;
+  applyToolChrome();
+  if (drag.kind === "box") {
+    const { rects } = currentRects();
+    if (!drag.moved) {
+      const hits = hitTestAll(state.parsed.roots, rects, drag.startX, drag.startY, state.showHidden, canHitWidget);
+      state.selection.selectFromHits(hits, drag.shift, false, rects);
+    } else {
+      const hits = boxHits(state.parsed.roots, rects, drag.marquee, state.showHidden, canHitWidget);
+      const ids = hits.map((h) => h.id);
+      if (drag.shift) {
+        const next = [...state.selection.ids];
+        for (const id of ids) if (!next.includes(id)) next.push(id);
+        state.selection.replace(next);
+      } else state.selection.replace(ids);
+      setStatus("Box selected " + state.selection.ids.length + " widget(s).");
+    }
+    afterSelect();
+    return;
+  }
   if (drag.kind === "move" && !drag.moved) return;
+  if (!drag.snaps) return;
   const now = snapshotGeometry(drag.snaps.map((s) => state.byId.get(s.id)).filter(Boolean));
   if (sameSnaps(drag.snaps, now)) return;
   commitGeometry(drag.snaps, now, drag.kind === "resize" ? "Resize" : "Move");
@@ -1349,23 +1500,28 @@ function fillProps() {
     els["prop-empty"].classList.remove("hidden");
     els["prop-form"].classList.add("hidden");
     els["sel-summary"].textContent = "Nothing selected";
+    fillLayersList();
     return;
   }
   els["prop-empty"].classList.add("hidden");
   els["prop-form"].classList.remove("hidden");
   const names = sel.map((x) => x.name || x.type).join(", ");
   els["sel-summary"].textContent = sel.length > 1 ? `${sel.length} selected: ${names}` : `${w.type}  ${w.name || "(unnamed)"}`;
-  if (!w) return;
+  if (!w) {
+    fillLayersList();
+    return;
+  }
   const { rects } = currentRects();
   const r = rects.get(w.id);
   els["f-name"].value = w.name;
-  els["f-type"].value = w.type;
+  if (els["f-skin-line"]) {
+    els["f-skin-line"].textContent = w.skin ? `${w.type}  ·  skin ${w.skin}` : w.type;
+  }
   if (els["f-tab"]) {
     els["f-tab"].textContent = state.tabs.length
       ? `Layout tab: ${tabOwnerLabel(w, state.tabs, state.tabMap)}  (${state.tabMap ? "mapping file" : "name guess"})`
       : "";
   }
-  els["f-skin"].value = w.skin;
   els["f-align"].value = w.align || "";
   els["f-visible"].checked = w.visible;
   els["f-x"].value = formatField(w.x);
@@ -1383,8 +1539,10 @@ function fillProps() {
   const sx = w.originalW ? (w.w / w.originalW) * 100 : 100;
   const sy = w.originalH ? (w.h / w.originalH) * 100 : 100;
   els["f-scale"].value = formatField((sx + sy) / 2);
-  document.getElementById("scale-readout").textContent = `Scale X ${formatField(sx)}%  Y ${formatField(sy)}%  (from imported size)`;
-  document.getElementById("distort-warn").classList.toggle("hidden", Math.abs(sx - sy) < 0.5);
+  const scaleReadout = document.getElementById("scale-readout");
+  if (scaleReadout) scaleReadout.textContent = `Scale X ${formatField(sx)}%  Y ${formatField(sy)}%  (from imported size)`;
+  const distort = document.getElementById("distort-warn");
+  if (distort) distort.classList.toggle("hidden", Math.abs(sx - sy) < 0.5);
   els["f-caption"].value = w.caption;
   els["f-image"].value = w.imageTexture;
   els["f-keep-aspect"].checked = w.imageKeepAspect === true;
@@ -1402,8 +1560,6 @@ function fillProps() {
   } else {
     els["f-img-info"].textContent = w.imageTexture ? "PNG not resolved. Select the Gui / assets folder." : "No ImageTexture on this widget.";
   }
-  const mode = els["img-preview-mode"].value;
-  document.getElementById("preview-only-warn").classList.toggle("hidden", mode === "layout" || mode === "stretch" || mode === "contain");
   els["raw-props"].textContent = w.propOrder.map((k) => `${k} = ${w.props[k]}`).join("\n") || "(no Property children)";
   els["unknown-props"].textContent = w.unknownProps.length
     ? w.unknownProps.map((p) => `${p.key} = ${p.value}`).join("\n")
@@ -1412,6 +1568,7 @@ function fillProps() {
   if (w.layer) extras.push(`layer=${w.layer}`);
   for (const a of w.extraAttrs) extras.push(`${a.name}=${a.value}`);
   document.getElementById("extra-attrs").textContent = extras.join("\n") || "(none)";
+  fillLayersList();
 }
 
 function formatField(n) {
@@ -1647,7 +1804,9 @@ function setWidgetToImageNative() {
 }
 
 function applyGroupScale() {
-  const pct = Number(els["group-scale"].value);
+  const el = document.getElementById("group-scale");
+  if (!el) return;
+  const pct = Number(el.value);
   if (!Number.isFinite(pct) || pct <= 0) return;
   const widgets = scaleTargets();
   if (!widgets.length) return;
@@ -1758,16 +1917,37 @@ function propSwap(widget, key, field, nextValue, assign) {
   return { label: "Edit " + key, redo, undo };
 }
 
+function isTextEntry(el) {
+  if (!el || !el.tagName) return false;
+  const tag = el.tagName.toLowerCase();
+  if (tag === "textarea") return true;
+  if (tag !== "input") return false;
+  const type = (el.type || "text").toLowerCase();
+  return !["checkbox", "radio", "button", "submit", "file", "range", "color", "hidden"].includes(type);
+}
+
 function onKey(ev) {
-  const typing = /input|textarea|select/i.test(ev.target.tagName);
+  const typing = isTextEntry(ev.target);
+  const dialogOpen = els.dialog && !els.dialog.classList.contains("hidden");
   if (ev.key === "Escape") {
     if (!els.dialog.classList.contains("hidden")) {
       closeDialog();
       return;
     }
     if (state.menus) state.menus.hideAll();
+    if (state.drag) {
+      if (state.drag.snaps) restoreGeometry(state.byId, state.drag.snaps);
+      state.drag = null;
+      applyToolChrome();
+      redraw();
+      return;
+    }
     if (state.layoutPreview) {
       setLayoutPreview(false);
+      return;
+    }
+    if (!typing && state.tool !== "select") {
+      setTool("select");
       return;
     }
     if (!typing) {
@@ -1776,7 +1956,8 @@ function onKey(ev) {
     }
     return;
   }
-  if (!typing && ev.key === "F5") {
+  if (dialogOpen) return;
+  if (ev.key === "F5") {
     ev.preventDefault();
     setLayoutPreview(!state.layoutPreview);
     return;
@@ -1785,6 +1966,39 @@ function onKey(ev) {
     ev.preventDefault();
     runCommand("fullscreen");
     return;
+  }
+  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "n") {
+    ev.preventDefault();
+    toggleRightPanel();
+    return;
+  }
+  if (!typing && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+    const k = ev.key.toLowerCase();
+    if (k === "q") {
+      ev.preventDefault();
+      setTool("select");
+      return;
+    }
+    if (k === "b") {
+      ev.preventDefault();
+      setTool("box");
+      return;
+    }
+    if (k === "w") {
+      ev.preventDefault();
+      setTool("move");
+      return;
+    }
+    if (k === "e") {
+      ev.preventDefault();
+      setTool("scale");
+      return;
+    }
+    if (k === "n") {
+      ev.preventDefault();
+      toggleLeftPanel();
+      return;
+    }
   }
   if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "s") {
     ev.preventDefault();
@@ -1969,10 +2183,7 @@ function redo() {
   updateHistoryButtons();
 }
 function updateHistoryButtons() {
-  els["btn-undo"].disabled = !state.history.canUndo;
-  els["btn-redo"].disabled = !state.history.canRedo;
-  els["btn-undo"].title = state.history.undoLabel || "Undo";
-  els["btn-redo"].title = state.history.redoLabel || "Redo";
+  refreshMenubar();
 }
 
 async function indexAssetFiles(files) {
@@ -2182,35 +2393,19 @@ function beginExport(overwrite) {
   if (!state.parsed) return;
   walkWidgets(state.parsed.roots, (w) => applyGeometry(w));
   const xml = exportLayoutXml(state.parsed.document);
-  const diff = unifiedDiff(state.parsed.originalXml, xml, state.fileName, state.fileName);
-  pendingSave = { xml, overwrite, diff };
-  els.modal.classList.remove("hidden");
-  els["chk-backup-modal"].checked = state.saveWithBackup;
-  const backupRow = document.getElementById("backup-modal-row");
-  if (backupRow) backupRow.classList.toggle("hidden", !overwrite);
-  if (overwrite) {
-    els["modal-title"].textContent = state.saveWithBackup ? "Save with backup" : "Save";
-    els["modal-hint"].textContent = state.saveWithBackup
-      ? "Writes the open layout. A timestamped .bak.layout is created first (the checkbox applies to every Save)."
-      : "Writes the open layout. No backup will be created unless you check Save with backup.";
-    els["btn-confirm-save"].textContent = "Save";
-  } else {
-    els["modal-title"].textContent = "Save As — XML changes";
-    els["modal-hint"].textContent = "Picks a new file. The original layout is not overwritten.";
-    els["btn-confirm-save"].textContent = "Save As…";
-  }
-  els["diff-view"].textContent = diff.changed ? diff.text : "No XML changes. The file matches the imported source.";
+  pendingSave = { xml, overwrite };
+  void confirmSave();
 }
 
 async function confirmSave() {
   if (!pendingSave) return;
   const { xml, overwrite } = pendingSave;
+  pendingSave = null;
   els.modal.classList.add("hidden");
   if (!overwrite) {
     await saveAs(xml);
     return;
   }
-  setSaveWithBackup(els["chk-backup-modal"].checked);
   if (!state.filePath || state.filePath.startsWith("samples/")) {
     await saveAs(xml);
     return;
@@ -2312,22 +2507,6 @@ function refreshTabFilter() {
   if (state.tabs.length && state.layoutTab === "all") {
     state.layoutTab = (state.tabMap && state.tabMap.defaultTab) || state.tabs[0];
   }
-  const wrap = els["tab-filter-wrap"];
-  const sel = els["tab-filter"];
-  if (!wrap || !sel) return;
-  wrap.classList.toggle("hidden", state.tabs.length === 0);
-  sel.innerHTML = "";
-  const all = document.createElement("option");
-  all.value = "all";
-  all.textContent = "All (stacked)";
-  sel.appendChild(all);
-  for (const id of state.tabs) {
-    const opt = document.createElement("option");
-    opt.value = id;
-    opt.textContent = tabLabel(id, state.tabMap);
-    sel.appendChild(opt);
-  }
-  sel.value = state.layoutTab;
   refreshMenubar();
 }
 
@@ -2380,26 +2559,25 @@ function groupsStorageKey() {
 }
 
 function refreshGroupFilter() {
-  const sel = els["group-filter"];
-  if (!sel) return;
-  const keep = sel.value;
-  sel.innerHTML = "";
-  const none = document.createElement("option");
-  none.value = "";
-  none.textContent = "(none)";
-  sel.appendChild(none);
+  const list = els["groups-list"];
+  const empty = els["groups-empty"];
+  if (!list || !empty) return;
+  list.innerHTML = "";
+  empty.classList.toggle("hidden", state.groups.length > 0);
+  empty.textContent = state.groups.length
+    ? ""
+    : "Select two or more named widgets, then Group.";
   for (const g of state.groups) {
-    const opt = document.createElement("option");
-    opt.value = g.id;
-    opt.textContent = g.label + " (" + g.members.length + ")";
-    sel.appendChild(opt);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "tree-item";
+    if (g.id === state.activeGroup) btn.classList.add("is-selected");
+    btn.innerHTML = `<span class="t-name">${escapeHtml(g.label)}</span><span class="t-tab">${g.members.length}</span>`;
+    btn.addEventListener("click", () => selectGroup(g.id));
+    list.appendChild(btn);
   }
-  const valid = state.activeGroup && state.groups.some((g) => g.id === state.activeGroup);
-  sel.value = valid ? state.activeGroup : keep && state.groups.some((g) => g.id === keep) ? keep : "";
-  if (!valid) state.activeGroup = sel.value;
   if (els["btn-ungroup"]) els["btn-ungroup"].disabled = !state.activeGroup;
   if (els["btn-group-rename"]) els["btn-group-rename"].disabled = !state.activeGroup;
-  if (els["btn-group"]) els["btn-group"].disabled = namedSelection().length < 2;
   refreshMenubar();
 }
 
@@ -2426,7 +2604,7 @@ function selectGroup(id) {
   redraw();
 }
 
-function groupSelection() {
+async function groupSelection() {
   const named = namedSelection();
   if (named.length < 2) {
     setStatus("Select two or more named widgets to group. Unnamed widgets cannot join a group.");
@@ -2442,7 +2620,12 @@ function groupSelection() {
     setStatus("That selection is already a group.");
     return;
   }
-  const label = window.prompt("Group name", "Group " + (state.groups.length + 1));
+  const label = await promptText({
+    title: "Group",
+    hint: "Editor-only. Not written into the layout.",
+    value: "Group " + (state.groups.length + 1),
+    okLabel: "Group",
+  });
   if (label == null) return;
   const trimmed = String(label).trim() || "Group";
   const id = uniqueGroupId(state.groups, trimmed);
@@ -2455,7 +2638,7 @@ function groupSelection() {
 
 function ungroupActive() {
   if (!state.activeGroup) {
-    setStatus("Pick a group in the Groups dropdown first.");
+    setStatus("Select a group in the list, then Ungroup.");
     return;
   }
   state.groups = state.groups.filter((g) => g.id !== state.activeGroup);
@@ -2465,10 +2648,17 @@ function ungroupActive() {
   setStatus("Group removed. Widgets are unchanged.");
 }
 
-function renameActiveGroup() {
+async function renameActiveGroup() {
   const g = state.groups.find((x) => x.id === state.activeGroup);
-  if (!g) return;
-  const label = window.prompt("Group name", g.label);
+  if (!g) {
+    setStatus("Select a group in the list, then Rename.");
+    return;
+  }
+  const label = await promptText({
+    title: "Rename Group",
+    value: g.label,
+    okLabel: "Rename",
+  });
   if (label == null) return;
   g.label = String(label).trim() || g.label;
   persistGroups();
@@ -2518,24 +2708,24 @@ function listEditorHidden() {
 }
 
 function refreshHiddenFilter() {
-  const sel = els["hidden-filter"];
-  if (!sel) return;
+  const list = els["hidden-list"];
+  const empty = els["hidden-empty"];
+  if (!list || !empty) return;
   const hidden = listEditorHidden();
-  const keep = sel.value;
-  sel.innerHTML = "";
-  const none = document.createElement("option");
-  none.value = "";
-  none.textContent = hidden.length ? hidden.length + " hidden" : "(none hidden)";
-  sel.appendChild(none);
+  list.innerHTML = "";
+  empty.classList.toggle("hidden", hidden.length > 0);
+  empty.textContent = hidden.length ? "" : "Nothing hidden in the editor.";
   for (const w of hidden) {
-    const opt = document.createElement("option");
-    opt.value = w.id;
-    const label = (w.name || "(unnamed)") + "  " + w.type;
-    opt.textContent = label;
-    sel.appendChild(opt);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "tree-item is-hidden";
+    if (state.selection.has(w.id)) btn.classList.add("is-selected");
+    btn.innerHTML = `<span class="t-type">${escapeHtml(w.type)}</span><span class="t-name">${escapeHtml(w.name || "(unnamed)")}</span>`;
+    btn.addEventListener("click", () => selectHiddenWidget(w.id));
+    list.appendChild(btn);
   }
-  sel.value = keep && hidden.some((w) => w.id === keep) ? keep : "";
-  if (els["btn-unhide"]) els["btn-unhide"].disabled = !sel.value;
+  const canUnhide = selectedWidgets().some((w) => w.editorHidden);
+  if (els["btn-unhide"]) els["btn-unhide"].disabled = !canUnhide;
   if (els["btn-unhide-all"]) els["btn-unhide-all"].disabled = hidden.length === 0;
 }
 
@@ -2547,20 +2737,18 @@ function selectHiddenWidget(id) {
   }
   state.selection.set(w.id);
   afterSelect();
-  if (els["hidden-filter"]) els["hidden-filter"].value = w.id;
-  if (els["btn-unhide"]) els["btn-unhide"].disabled = !w.editorHidden;
   setStatus("Selected hidden “" + (w.name || w.type) + "”. Unhide to show it on the canvas.");
 }
 
 function unhideFromList() {
-  const id = els["hidden-filter"] && els["hidden-filter"].value;
-  const w = state.byId.get(id);
-  if (!w || !w.editorHidden) {
-    setStatus("Pick a hidden widget in the Hidden dropdown.");
+  const widgets = selectedWidgets().filter((w) => w.editorHidden);
+  if (!widgets.length) {
+    setStatus("Select a hidden widget in the list, then Unhide.");
     return;
   }
-  toggleFlag([w], "editorHidden", "Unhide in editor");
-  setStatus("Unhid “" + (w.name || w.type) + "” in the editor. Layout file unchanged.");
+  toggleFlag(widgets, "editorHidden", "Unhide in editor");
+  const names = widgets.map((w) => w.name || w.type).join(", ");
+  setStatus("Unhid “" + names + "” in the editor. Layout file unchanged.");
 }
 
 function persistGroups() {
@@ -2581,7 +2769,6 @@ function maybeSwitchLayoutTab(w) {
   const id = tabIdFromButton(w && w.name, state.tabMap);
   if (!id || !state.tabs.includes(id) || state.layoutTab === id) return;
   state.layoutTab = id;
-  if (els["tab-filter"]) els["tab-filter"].value = id;
   redraw();
   refreshMenubar();
   setStatus("Showing " + id + " tab.");
@@ -2639,6 +2826,12 @@ function menuContext() {
     activeGroup: state.activeGroup || "",
     hasActiveGroup: !!state.activeGroup,
     hiddenWidgets: listEditorHidden(),
+    tool: state.tool,
+    leftCollapsed: !!state.leftCollapsed,
+    rightCollapsed: !!state.rightCollapsed,
+    checker: state.checker,
+    hasParent: !!(w && w.parent),
+    canReplaceImage: !!(w && (w.type === "ImageBox" || w.imageTexture)),
   };
 }
 
@@ -2669,8 +2862,7 @@ function onCanvasContextMenu(ev) {
 function setLayoutPreview(on) {
   state.layoutPreview = !!on;
   document.body.classList.toggle("layout-preview", state.layoutPreview);
-  els["btn-preview"].classList.toggle("is-on", state.layoutPreview);
-  els["btn-preview"].textContent = state.layoutPreview ? "Exit Preview" : "Preview";
+  if (els["preview-hud"]) els["preview-hud"].classList.toggle("hidden", !state.layoutPreview);
   redraw();
   requestAnimationFrame(() => {
     applyZoom();
@@ -2713,32 +2905,20 @@ function loadPrefs() {
       const el = document.getElementById("grid-size");
       if (el) el.value = String(prefs.gridSize);
     }
-    if (typeof prefs.snap === "boolean") {
-      state.snap = prefs.snap;
-      const el = document.getElementById("chk-snap");
-      if (el) el.checked = prefs.snap;
-    }
-    if (typeof prefs.showHidden === "boolean") {
-      state.showHidden = prefs.showHidden;
-      const el = document.getElementById("chk-hidden");
-      if (el) el.checked = prefs.showHidden;
-    }
-    if (typeof prefs.checker === "boolean") {
-      state.checker = prefs.checker;
-      const el = document.getElementById("chk-checker");
-      if (el) el.checked = prefs.checker;
-    }
-    if (typeof prefs.saveWithBackup === "boolean") {
-      state.saveWithBackup = prefs.saveWithBackup;
-      const el = document.getElementById("chk-backup");
-      if (el) el.checked = prefs.saveWithBackup;
-      const modal = document.getElementById("chk-backup-modal");
-      if (modal) modal.checked = prefs.saveWithBackup;
-    }
+    if (typeof prefs.showGrid === "boolean") state.showGrid = prefs.showGrid;
+    if (typeof prefs.snap === "boolean") state.snap = prefs.snap;
+    if (typeof prefs.showHidden === "boolean") state.showHidden = prefs.showHidden;
+    if (typeof prefs.checker === "boolean") state.checker = prefs.checker;
+    if (typeof prefs.saveWithBackup === "boolean") state.saveWithBackup = prefs.saveWithBackup;
     if (typeof prefs.restoreSession === "boolean") state.restoreSession = prefs.restoreSession;
     if (typeof prefs.autoUpdate === "boolean") state.autoUpdate = prefs.autoUpdate;
     if (Number.isFinite(prefs.autosaveMinutes)) state.autosaveMinutes = Math.max(0, Math.min(60, prefs.autosaveMinutes));
     if (Number.isFinite(prefs.autosaveKeep)) state.autosaveKeep = Math.max(1, Math.min(10, prefs.autosaveKeep));
+    if (["select", "box", "move", "scale"].includes(prefs.tool)) state.tool = prefs.tool;
+    if (typeof prefs.leftCollapsed === "boolean") state.leftCollapsed = prefs.leftCollapsed;
+    if (typeof prefs.rightCollapsed === "boolean") state.rightCollapsed = prefs.rightCollapsed;
+    if (prefs.leftPage) state.leftPage = prefs.leftPage;
+    if (prefs.rightPage) state.rightPage = prefs.rightPage;
     if (prefs.previewRes) {
       const el = document.getElementById("preview-res");
       if (el) {
@@ -2839,8 +3019,6 @@ async function runAutosave() {
 
 function setSaveWithBackup(on) {
   state.saveWithBackup = !!on;
-  if (els["chk-backup"]) els["chk-backup"].checked = state.saveWithBackup;
-  if (els["chk-backup-modal"]) els["chk-backup-modal"].checked = state.saveWithBackup;
   savePrefs({ saveWithBackup: state.saveWithBackup });
   refreshMenubar();
 }
@@ -2929,8 +3107,18 @@ async function reloadDiskChanges() {
   setStatus("Reloaded from disk.");
 }
 
+let pendingPrompt = null;
+
+function finishPrompt(value) {
+  if (!pendingPrompt) return;
+  const done = pendingPrompt;
+  pendingPrompt = null;
+  done(value);
+}
+
 function closeDialog() {
   els.dialog.classList.add("hidden");
+  finishPrompt(null);
 }
 
 function openDialog({ title, html, actions, narrow }) {
@@ -2945,12 +3133,46 @@ function openDialog({ title, html, actions, narrow }) {
     b.textContent = a.label;
     if (a.primary) b.classList.add("primary");
     b.addEventListener("click", () => {
-      if (a.close !== false) closeDialog();
       if (a.onClick) a.onClick();
+      if (a.close !== false) closeDialog();
     });
     row.appendChild(b);
   }
   els.dialog.classList.remove("hidden");
+}
+
+function promptText({ title, hint, value, okLabel }) {
+  return new Promise((resolve) => {
+    pendingPrompt = resolve;
+    const hintHtml = hint ? `<p class="hint">${hint}</p>` : "";
+    openDialog({
+      title,
+      narrow: true,
+      html: `${hintHtml}<label>Name <input id="dlg-text" type="text" value="${escapeHtml(value || "")}" /></label>`,
+      actions: [
+        { label: "Cancel" },
+        {
+          label: okLabel || "OK",
+          primary: true,
+          onClick: () => {
+            const el = document.getElementById("dlg-text");
+            finishPrompt(el ? el.value : "");
+          },
+        },
+      ],
+    });
+    const input = document.getElementById("dlg-text");
+    if (input) {
+      input.focus();
+      input.select();
+      input.addEventListener("keydown", (ev) => {
+        if (ev.key !== "Enter") return;
+        ev.preventDefault();
+        const primary = els["dialog-actions"].querySelector("button.primary");
+        if (primary) primary.click();
+      });
+    }
+  });
 }
 
 function siblingList(widget) {
@@ -3276,7 +3498,6 @@ function zoomBy(factor) {
   if (state.fitZoom) {
     applyZoom();
     state.fitZoom = false;
-    els.zoom.value = "100";
   }
   state.zoom = Math.max(0.05, Math.min(4, state.zoom * factor));
   applyZoom();
@@ -3310,7 +3531,13 @@ async function runCommand(cmd, arg) {
       pickModFolder();
       break;
     case "openLayout":
-      els["btn-open"].click();
+      els["file-open"].click();
+      break;
+    case "pickLayoutsFolder":
+      await pickCustomFolder("layouts");
+      break;
+    case "pickImagesFolder":
+      await pickCustomFolder("images");
       break;
     case "openRecent": {
       const rec = loadRecent()[arg];
@@ -3355,6 +3582,7 @@ async function runCommand(cmd, arg) {
     state.activeGroup = "";
     refreshGroupFilter();
       els["file-name"].textContent = "No file loaded";
+      document.title = "Scrappy GUI Editor";
       els["layout-select"].value = "";
       hideDiskBanner();
       refreshTabFilter();
@@ -3408,17 +3636,16 @@ async function runCommand(cmd, arg) {
       break;
     case "layoutTab":
       state.layoutTab = arg || "all";
-      if (els["tab-filter"]) els["tab-filter"].value = state.layoutTab;
       redraw();
       break;
     case "groupSel":
-      groupSelection();
+      await groupSelection();
       break;
     case "ungroupSel":
       ungroupActive();
       break;
     case "renameGroup":
-      renameActiveGroup();
+      await renameActiveGroup();
       break;
     case "selectGroup":
       selectGroup(arg);
@@ -3437,28 +3664,73 @@ async function runCommand(cmd, arg) {
       break;
     case "fitCanvas":
       state.fitZoom = true;
-      els.zoom.value = "fit";
       applyZoom();
       break;
     case "actualSize":
       state.fitZoom = false;
       state.zoom = 1;
-      els.zoom.value = "100";
       applyZoom();
       break;
     case "toggleGrid":
-      els["chk-grid"].checked = !els["chk-grid"].checked;
-      state.showGrid = els["chk-grid"].checked;
+      state.showGrid = !state.showGrid;
+      savePrefs({ showGrid: state.showGrid });
       refreshCanvasChrome();
       break;
     case "toggleSnap":
-      els["chk-snap"].checked = !els["chk-snap"].checked;
-      state.snap = els["chk-snap"].checked;
+      state.snap = !state.snap;
+      savePrefs({ snap: state.snap });
+      setStatus(state.snap ? "Snap on." : "Snap off.");
+      break;
+    case "toggleChecker":
+      state.checker = !state.checker;
+      savePrefs({ checker: state.checker });
+      refreshCanvasChrome();
       break;
     case "toggleHidden":
-      els["chk-hidden"].checked = !els["chk-hidden"].checked;
-      state.showHidden = els["chk-hidden"].checked;
+      state.showHidden = !state.showHidden;
+      savePrefs({ showHidden: state.showHidden });
       redraw();
+      break;
+    case "toggleLeftPanel":
+      toggleLeftPanel();
+      break;
+    case "toggleRightPanel":
+      toggleRightPanel();
+      break;
+    case "toolSelect":
+      setTool("select");
+      break;
+    case "toolBox":
+      setTool("box");
+      break;
+    case "toolMove":
+      setTool("move");
+      break;
+    case "toolScale":
+      setTool("scale");
+      break;
+    case "selectParent": {
+      const w = state.menuWidget || primaryWidget();
+      if (w && w.parent) {
+        state.selection.set(w.parent.id);
+        afterSelect();
+      }
+      break;
+    }
+    case "fitParent":
+      fitToParent();
+      break;
+    case "centerInParent":
+      centerInParent(true, true);
+      break;
+    case "centerH":
+      centerInParent(true, false);
+      break;
+    case "centerV":
+      centerInParent(false, true);
+      break;
+    case "replaceImage":
+      els["file-image"].click();
       break;
     case "toggleGameLayers":
       state.showGameLayers = !state.showGameLayers;
@@ -3589,7 +3861,6 @@ async function runCommand(cmd, arg) {
     case "showAllHidden":
       if (state.parsed) walkWidgets(state.parsed.roots, (w) => { w.editorHidden = false; });
       state.soloId = null;
-      els["chk-hidden"].checked = true;
       state.showHidden = true;
       redraw();
       setStatus("All editor-hidden widgets are visible again. Layout file unchanged.");
@@ -3641,7 +3912,7 @@ async function runCommand(cmd, arg) {
             <li>Open a mod folder, then pick a layout. Defaults are <code>Gui/Menu/Layouts</code> and <code>Gui/Menu/Images</code>.</li>
             <li>Right-click a widget, empty canvas, or hierarchy row for actions.</li>
             <li><code>position_real</code> values are fractions of the parent. Canvas zoom is view-only.</li>
-            <li>Save writes the open layout. Check <strong>Save with backup</strong> to write a timestamped <code>.bak.layout</code> first. That checkbox is remembered and used for File &gt; Save, Ctrl+S, and the save dialog.</li>
+            <li>Save writes the open layout immediately (Ctrl+S). Timestamped <code>.bak.layout</code> backups are optional in Edit &gt; Preferences.</li>
             <li>If a layout or PNG changes on disk, a banner offers reload.</li>
             <li>Groups (Hierarchy panel) are editor-only. They save as <code>.layout.groups.json</code> beside the layout, never inside Save.</li>
             <li>Last mod / folders / layout reopen automatically. Autosaves are <code>.layout.autosave.&lt;time&gt;</code> beside the file (Preferences). File &gt; Restore Autosave loads a copy; Save writes the live layout.</li>
@@ -3653,16 +3924,17 @@ async function runCommand(cmd, arg) {
       openDialog({
         title: "Keyboard Shortcuts",
         html: `<ul>
-          <li><kbd>Ctrl+S</kbd> Save · <kbd>Ctrl+Shift+S</kbd> Save As</li>
+          <li><kbd>Q</kbd> Select · <kbd>B</kbd> Box select · <kbd>W</kbd> Move · <kbd>E</kbd> Scale</li>
+          <li><kbd>N</kbd> Hierarchy panel · <kbd>Ctrl+N</kbd> Properties panel</li>
+          <li><kbd>Ctrl+S</kbd> Save immediately · <kbd>Ctrl+Shift+S</kbd> Save As</li>
           <li><kbd>Ctrl+Z</kbd> Undo · <kbd>Ctrl+Y</kbd> Redo</li>
           <li><kbd>Ctrl+X</kbd> Cut · <kbd>Ctrl+C</kbd> Copy · <kbd>Ctrl+V</kbd> Paste · <kbd>Ctrl+D</kbd> Duplicate</li>
           <li><kbd>Delete</kbd> Delete · <kbd>F2</kbd> Rename · <kbd>Ctrl+A</kbd> Select all</li>
-          <li>Shift-click adds to the selection. Click a selected widget to drag all of them. Groups work the same way.</li>
+          <li>Select clicks without moving. Move tool drags. Box tool marquee-selects anything it touches. Scale tool uses group handles.</li>
           <li><kbd>Ctrl+G</kbd> Group selection · <kbd>Ctrl+Shift+G</kbd> Ungroup</li>
           <li><kbd>Ctrl+[</kbd> / <kbd>Ctrl+]</kbd> stack · Shift for ends</li>
-          <li><kbd>F5</kbd> Layout preview · <kbd>F11</kbd> Fullscreen · <kbd>Esc</kbd> cancel</li>
+          <li><kbd>F5</kbd> Layout preview · <kbd>F11</kbd> Fullscreen · <kbd>Esc</kbd> Select tool, then clear selection</li>
           <li>Arrows nudge 1px · Shift+Arrows 10px</li>
-          <li>Drag handles: <strong>resize</strong> that widget (or each, if “Handle drag scales the group” is off). Scale % still grows from imported size.</li>
         </ul>`,
         actions: [{ label: "Close", primary: true }],
       });
@@ -3858,7 +4130,16 @@ function showPreferences() {
   openDialog({
     title: "Preferences",
     narrow: true,
-    html: `<label>Default preview resolution
+    html: `<h3>Folders</h3>
+      <p class="muted">Mod: ${escapeHtml(state.modPath || "(none)")}</p>
+      <p class="muted">Layouts: ${escapeHtml(state.layoutsDir || "(none)")}</p>
+      <p class="muted">Images: ${escapeHtml(state.imagesDir || "(none)")}</p>
+      <div class="btn-row">
+        <button type="button" id="pref-open-mod">Open Mod…</button>
+        <button type="button" id="pref-layouts">Layouts Folder…</button>
+        <button type="button" id="pref-images">Images Folder…</button>
+      </div>
+      <label>Default preview resolution
         <select id="pref-res">
           <option value="1280x720">1280×720</option>
           <option value="1600x900">1600×900</option>
@@ -3876,7 +4157,7 @@ function showPreferences() {
       <label class="check"><input id="pref-autoupdate" type="checkbox" ${state.autoUpdate ? "checked" : ""} /> Check GitHub for desktop updates on launch</label>
       <label>Autosave every (minutes, 0 = off) <input id="pref-autosave-min" type="number" min="0" max="60" value="${state.autosaveMinutes}" /></label>
       <label>Keep this many autosaves <input id="pref-autosave-keep" type="number" min="1" max="10" value="${state.autosaveKeep}" /></label>
-      <p class="hint">Session (folders + last menu) stays on this PC. Autosaves are <code>YourMenu.layout.autosave.&lt;time&gt;</code> next to the layout — not the live file, and the game does not load them. Uncheck desktop updates if you do not want the installed app to contact GitHub. Updates never write into your mod folder.</p>`,
+      <p class="hint">Session (folders + last menu) stays on this PC. Autosaves are <code>YourMenu.layout.autosave.&lt;time&gt;</code> next to the layout — not the live file, and the game does not load them. Save writes immediately; backups are this checkbox only. Uncheck desktop updates if you do not want the installed app to contact GitHub. Updates never write into your mod folder.</p>`,
     actions: [
       { label: "Cancel" },
       {
@@ -3895,13 +4176,9 @@ function showPreferences() {
           const autosaveKeep = Math.max(1, Math.min(10, Number(document.getElementById("pref-autosave-keep").value) || 4));
           savePrefs({ previewRes, gridSize, snap, showHidden, checker, saveWithBackup, restoreSession, autoUpdate, autosaveMinutes, autosaveKeep });
           state.gridSize = gridSize;
-          els["grid-size"].value = String(gridSize);
           state.snap = snap;
-          els["chk-snap"].checked = snap;
           state.showHidden = showHidden;
-          els["chk-hidden"].checked = showHidden;
           state.checker = checker;
-          els["chk-checker"].checked = checker;
           setSaveWithBackup(saveWithBackup);
           state.restoreSession = restoreSession;
           state.autoUpdate = autoUpdate;
@@ -3924,6 +4201,17 @@ function showPreferences() {
   });
   const resEl = document.getElementById("pref-res");
   if (resEl) resEl.value = els["preview-res"].value === "custom" ? "1920x1080" : els["preview-res"].value;
+  const bindPrefBtn = (id, fn) => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.addEventListener("click", () => {
+      closeDialog();
+      fn();
+    });
+  };
+  bindPrefBtn("pref-open-mod", () => void pickModFolder());
+  bindPrefBtn("pref-layouts", () => void pickCustomFolder("layouts"));
+  bindPrefBtn("pref-images", () => void pickCustomFolder("images"));
 }
 
 PRESETS.forEach(() => {});

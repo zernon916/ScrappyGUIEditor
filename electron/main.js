@@ -1,8 +1,14 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, shell, Menu } = require("electron");
 const path = require("path");
 const { pathToFileURL } = require("url");
 const { autoUpdater } = require("electron-updater");
 const io = require("./io");
+
+if (!app.isPackaged) {
+  const devName = "Scrappy GUI Editor Dev";
+  app.setName(devName);
+  app.setPath("userData", path.join(app.getPath("appData"), devName));
+}
 
 let mainWindow = null;
 let autoUpdateEnabled = true;
@@ -65,12 +71,23 @@ function send(channel, payload) {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("scrappy:" + channel, payload);
 }
 
-app.whenReady().then(() => {
-  createWindow();
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
   });
-});
+  app.whenReady().then(() => {
+    Menu.setApplicationMenu(null);
+    createWindow();
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  });
+}
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

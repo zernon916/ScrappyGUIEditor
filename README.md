@@ -12,23 +12,24 @@ The **`.bat` / Python** download stays on [`main`](https://github.com/zernon916/
 
 The installer does not write into your Scrap Mechanic mod folder. Layouts stay where you opened them.
 
-## What’s new in 1.0.1
+## What’s new in 1.1.0
 
-Editor canvas and properties (same changes on [`main`](https://github.com/zernon916/ScrappyGUIEditor/tree/main) for the `.bat` build):
+Editor chrome and tools (same canvas on [`main`](https://github.com/zernon916/ScrappyGUIEditor/tree/main) for the `.bat` build):
 
-- **Paint order matches the game.** Later XML siblings draw on top. Empty `ImageBox` cells look solid so you can see coverage, and the properties panel warns when a later widget covers the selection.
-- **Resize is not Scale %.** **W px / H px** plus **Apply size to selection** changes width and height with the top-left fixed. Scale % still multiplies the size from when you opened the file.
-- **Resize a panel without stretching its buttons.** Select only the panel (for example `PanelCats`). Leave **Stretch children when this panel resizes** off. Category buttons keep their pixel size; art that already fills the panel (`0 0 1 1`) still grows with it. Turn that checkbox on if you *want* children to stretch.
-- **Auto-size parent to wrap children** (on by default) grows panels such as `PanelCats` when you move children, so MyGUI does not clip them in-game. The editor paints children even outside the parent; the game does not.
-- **Handle drag scales the group** (on by default) scales the whole selection from its box. Turn it off to resize each selected widget’s own box.
-- The **status bar** sits under the canvas only, so it no longer covers the bottom of Hierarchy.
+- **Q Select, B Box, W Move, E Scale.** Select clicks; Box draws a marquee (intersect, not fully-inside). Neither moves widgets — **Move** does. Scale uses the handles. **Esc** returns to Select, then clears.
+- **N / Ctrl+N** hide the left and right docks. Left pages: Hierarchy, Groups, Hidden. Right: Transform, Layers, Text, Image, Overlay, Raw.
+- **File / Edit** stay sticky. Open mod, layouts/images folders, Save, and Save As are in **File**. Backup is **Preferences**. Resolution / Scale test live in the **Preview** HUD (**F5**).
+- **Ctrl+S** writes immediately (no XML-diff confirm). Groups and Hidden are lists; new groups use an in-app prompt (Electron has no `window.prompt`).
+- Unpackaged `start_desktop.bat` uses a separate app name so it does not fight the installed EXE over Chromium cache.
+
+1.0.1 still applies: in-game paint order, W/H resize vs Scale %, panel stretch / wrap-children, and the canvas status bar.
 
 ## How to use
 
 1. Launch **Scrappy GUI Editor**.
-2. Click **Open mod folder** and pick the folder that contains `Gui\` (your mod root, not a single `.layout`).
-3. Pick a menu from the **Layout** dropdown. Defaults are `Gui/Menu/Layouts` and `Gui/Menu/Images` (or `Image`). If your mod uses another tree, use **Layouts folder…** and **Images folder…**.
-4. Move widgets on the canvas. **Save** writes the open file. Check **Save with backup** if you want a timestamped `.bak.layout` first.
+2. **File → Open mod folder** and pick the folder that contains `Gui\` (your mod root, not a single `.layout`).
+3. Pick a menu from the **Layout** dropdown. Defaults are `Gui/Menu/Layouts` and `Gui/Menu/Images` (or `Image`). If your mod uses another tree, **File → Layouts folder…** / **Images folder…**.
+4. Use **Q / B / W / E** on the canvas. **File → Save** writes the open file. Timestamped backups are **Edit → Preferences**.
 
 ### Worth knowing
 
@@ -39,7 +40,7 @@ Editor canvas and properties (same changes on [`main`](https://github.com/zernon
 
 ## Updates
 
-On launch the installed app checks the latest **GitHub Release** (semver tag such as `v1.0.1`), not every commit. It downloads in the background, autosaves, then asks to restart. Uncheck **Check GitHub for desktop updates on launch** in Edit → Preferences if you do not want it to contact GitHub. File → Check for Updates does the same check on demand.
+On launch the installed app checks the latest **GitHub Release** (semver tag such as `v1.1.0`), not every commit. It downloads in the background, autosaves, then asks to restart. Uncheck **Check GitHub for desktop updates on launch** in Edit → Preferences if you do not want it to contact GitHub. File → Check for Updates does the same check on demand.
 
 Updates never overwrite a live `.layout`.
 
@@ -60,13 +61,13 @@ Build a local installer without publishing:
 npm run dist
 ```
 
-That writes `dist\ScrappyGUIEditor-Setup-1.0.1.exe`. Do not copy it into a mod folder.
+That writes `dist\ScrappyGUIEditor-Setup-1.1.0.exe`. Do not copy it into a mod folder.
 
 ## Shipping a new EXE
 
 1. Bump `"version"` in `package.json`.
 2. Push `Desktop-Version`.
-3. Tag that commit, for example `v1.0.1`, and push the tag.
+3. Tag that commit, for example `v1.1.0`, and push the tag.
 4. GitHub Actions builds the NSIS installer and attaches it to a Release. Auto-update looks at that Release.
 
 More format notes: [`scrap_gui_editor/README.md`](scrap_gui_editor/README.md).

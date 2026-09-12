@@ -1,7 +1,7 @@
 {
   "name": "scrappy-gui-editor",
   "productName": "Scrappy GUI Editor",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Local visual editor for Scrap Mechanic MyGUI .layout files",
   "author": "zernon916",
   "private": true,
