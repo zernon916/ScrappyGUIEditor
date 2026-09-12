@@ -119,6 +119,18 @@ export function boundingBox(ids, rects) {
 
 export function renderSelectionOverlay(overlay, ids, rects, options) {
   overlay.innerHTML = "";
+  if (options && options.marquee) {
+    const m = options.marquee;
+    const boxEl = document.createElement("div");
+    boxEl.className = "marquee";
+    const x = Math.min(m.x1, m.x2);
+    const y = Math.min(m.y1, m.y2);
+    boxEl.style.left = x + "px";
+    boxEl.style.top = y + "px";
+    boxEl.style.width = Math.abs(m.x2 - m.x1) + "px";
+    boxEl.style.height = Math.abs(m.y2 - m.y1) + "px";
+    overlay.appendChild(boxEl);
+  }
   if (!ids.length) return;
   const box = boundingBox(ids, rects);
   if (!box) return;
@@ -141,12 +153,19 @@ export function renderSelectionOverlay(overlay, ids, rects, options) {
     overlay.appendChild(item);
   }
   if (!options || options.handles !== false) {
-    for (const h of HANDLES) {
-      const handle = document.createElement("div");
-      handle.className = "sel-handle";
-      handle.dataset.handle = h;
-      positionHandle(handle, box, h);
-      overlay.appendChild(handle);
+    const showHandles = options && options.handles === "scale"
+      ? true
+      : options && options.handles === "single"
+        ? ids.length === 1
+        : true;
+    if (showHandles) {
+      for (const h of HANDLES) {
+        const handle = document.createElement("div");
+        handle.className = "sel-handle";
+        handle.dataset.handle = h;
+        positionHandle(handle, box, h);
+        overlay.appendChild(handle);
+      }
     }
   }
 }
@@ -238,6 +257,27 @@ export function resizeEachRects(ids, rects, handle, dx, dy, lockAspect) {
     result.set(id, resizeBox(r, handle, dx, dy, lockAspect));
   }
   return result;
+}
+
+/** Widgets whose screen rects intersect the marquee (not fully-inside). */
+export function boxHits(roots, rects, marquee, showHidden, canHit) {
+  const x1 = Math.min(marquee.x1, marquee.x2);
+  const y1 = Math.min(marquee.y1, marquee.y2);
+  const x2 = Math.max(marquee.x1, marquee.x2);
+  const y2 = Math.max(marquee.y1, marquee.y2);
+  const hits = [];
+  function walk(list) {
+    for (const w of list || []) {
+      walk(w.children);
+      if (canHit && !canHit(w)) continue;
+      if (!w.visible && !showHidden) continue;
+      const r = rects.get(w.id);
+      if (!r) continue;
+      if (r.x < x2 && r.x + r.w > x1 && r.y < y2 && r.y + r.h > y1) hits.push(w);
+    }
+  }
+  walk(roots);
+  return hits;
 }
 
 export { HANDLES };

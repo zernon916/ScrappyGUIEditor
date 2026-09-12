@@ -14,14 +14,14 @@ Want an installer instead? Use the Windows app on [`Desktop-Version`](https://gi
 
 **Need:** [Python 3](https://www.python.org/downloads/) on Windows, with **Add python.exe to PATH** checked. You do not need Node for normal use.
 
-## What’s new (1.0.1, same canvas as the desktop app)
+## What’s new (1.1.0, same canvas as the desktop app)
 
-- **Paint order matches the game.** Later XML siblings draw on top. Empty `ImageBox` cells look solid so you can see coverage, and the properties panel warns when a later widget covers the selection.
-- **Resize is not Scale %.** **W px / H px** plus **Apply size to selection** changes width and height with the top-left fixed. Scale % still multiplies the size from when you opened the file.
-- **Resize a panel without stretching its buttons.** Select only the panel (for example `PanelCats`). Leave **Stretch children when this panel resizes** off. Category buttons keep their pixel size; art that already fills the panel (`0 0 1 1`) still grows with it.
-- **Auto-size parent to wrap children** (on by default) grows panels such as `PanelCats` when you move children, so MyGUI does not clip them in-game. The editor paints children even outside the parent; the game does not.
-- **Handle drag scales the group** (on by default) scales the whole selection from its box. Turn it off to resize each selected widget’s own box.
-- The **status bar** sits under the canvas only, so it no longer covers the bottom of Hierarchy.
+- **Q Select, B Box, W Move, E Scale.** Select clicks; Box draws a marquee (intersect, not fully-inside). Neither moves widgets — **Move** does. Scale uses the handles. **Esc** returns to Select, then clears.
+- **N / Ctrl+N** hide the left and right docks. Left pages: Hierarchy, Groups, Hidden. Right: Transform, Layers, Text, Image, Overlay, Raw.
+- **File / Edit** stay sticky. Open mod, layouts/images folders, Save, and Save As are in **File**. Backup is **Preferences**. Resolution / Scale test live in the **Preview** HUD (**F5**).
+- **Ctrl+S** writes immediately (no XML-diff confirm). Groups and Hidden are lists.
+
+1.0.1 still applies: in-game paint order, W/H resize vs Scale %, panel stretch / wrap-children, and the canvas status bar.
 
 Refresh the browser after you unzip a new `main` download so these scripts load.
 
@@ -29,9 +29,9 @@ Refresh the browser after you unzip a new `main` download so these scripts load.
 
 1. Double-click **`start_editor.bat`**. Leave that console open.
 2. Your browser should open [http://127.0.0.1:8765/index.html](http://127.0.0.1:8765/index.html). If it does not, paste that address yourself. Do not open `index.html` as a file.
-3. Click **Open mod folder** and pick the folder that contains `Gui\` (your mod root, not a single `.layout`).
-4. Pick a menu from the **Layout** dropdown. Defaults are `Gui/Menu/Layouts` and `Gui/Menu/Images` (or `Image`). If your mod uses another tree, use **Layouts folder…** and **Images folder…**.
-5. Move widgets on the canvas. **Save** writes the open file. Check **Save with backup** if you want a timestamped `.bak.layout` first.
+3. **File → Open mod folder** and pick the folder that contains `Gui\` (your mod root, not a single `.layout`).
+4. Pick a menu from the **Layout** dropdown. Defaults are `Gui/Menu/Layouts` and `Gui/Menu/Images` (or `Image`). If your mod uses another tree, **File → Layouts folder…** / **Images folder…**.
+5. Use **Q / B / W / E** on the canvas. **File → Save** writes the open file. Timestamped backups are **Edit → Preferences**.
 6. When you are done, close the browser tab and stop the console with Ctrl+C.
 
 Next launch can reopen the last mod, folders, and layout (Edit → Preferences).
