@@ -164,6 +164,7 @@ function paintList(parentEl, list, rects, options, z) {
     el.style.zIndex = String(z.n++);
     if (isXmlHidden(w) && !options.showHidden) continue;
     if (options.isTabHidden && options.isTabHidden(w)) continue;
+    if (options.isStateHidden && options.isStateHidden(w)) continue;
     if (!isEditorPainted(w, options)) {
       if (w.children.length) paintList(parentEl, w.children, rects, options, z);
       continue;
@@ -335,6 +336,7 @@ export function renderHierarchy(container, roots, selectedIds, onClick, extra = 
       if (w.locked) row.classList.add("is-locked");
       if (soloId && w.id === soloId) row.classList.add("is-solo");
       if (extra.isTabHidden && extra.isTabHidden(w)) row.classList.add("is-tab-off");
+      if (extra.isStateHidden && extra.isStateHidden(w)) row.classList.add("is-state-off");
       const twist = document.createElement("span");
       twist.className = "tree-twist";
       if (w.children.length) {

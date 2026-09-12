@@ -37,6 +37,15 @@ label.check { flex-direction: row; align-items: center; gap: 8px; }
   z-index: 40;
 }
 .chrome .layout-pick { margin-left: auto; }
+.state-sets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  max-width: 52%;
+}
+.state-sets .layout-pick { margin-left: 0; }
+.state-sets select { min-width: 110px; max-width: 180px; }
 .topbar { display: flex; align-items: center; gap: 16px; padding: 8px 12px; background: #0e1014; border-bottom: 1px solid var(--border); }
 .brand { display: flex; align-items: baseline; gap: 8px; }
 .local-tag { font-size: 11px; color: var(--ok); border: 1px solid var(--ok); padding: 0 6px; border-radius: 8px; }
@@ -344,7 +353,8 @@ body.side-by-side .canvas-wrap { display: grid; grid-template-columns: 1fr 1fr; 
 
 .tree-twist { width: 14px; color: var(--muted); flex: 0 0 14px; }
 .tree-item.is-locked .t-name { font-style: italic; }
-.tree-item.is-tab-off { opacity: 0.35; }
+.tree-item.is-tab-off,
+.tree-item.is-state-off { opacity: 0.35; }
 .sm-widget.is-locked { outline: 1px dashed #e0a23a; }
 .layer-badge {
   position: absolute;
