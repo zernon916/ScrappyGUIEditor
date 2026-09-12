@@ -6,12 +6,14 @@ import {
   renderWidgets,
   renderHierarchy,
   writeScreenRect,
+  nativeToScreen,
   imageScaleInfo,
   isRelative,
   isEditorPainted,
   isXmlHidden,
+  paintOrderList,
 } from "./renderer.js";
-import { Selection, hitTestAll, boundingBox, renderSelectionOverlay, resizeBox, scaleRectsFromBox } from "./selection.js";
+import { Selection, hitTestAll, boundingBox, renderSelectionOverlay, resizeBox, scaleRectsFromBox, resizeEachRects } from "./selection.js";
 import { createMenuController, widgetMenuItems, canvasMenuItems, hierarchyMenuItems, menuBarSpec } from "./menus.js";
 import { detectTabIds, isOnInactiveTab, tabIdFromButton, tabOwner, tabOwnerLabel, tabLabel, parseTabMap } from "./tabs.js";
 import { parseGroups, serializeGroups, uniqueGroupId, matchingGroupId, renameGroupMember } from "./groups.js";
@@ -56,6 +58,8 @@ const state = {
   showHidden: true,
   aspectLock: false,
   scaleChildren: false,
+  handleScaleGroup: true,
+  autoFitParent: true,
   imagePreviewMode: "layout",
   screenshot: { url: null, opacity: 0.45, mode: "overlay" },
   refOverlay: { on: false, x: 200, y: 80, w: 800, h: 600 },
@@ -186,6 +190,12 @@ function cacheEls() {
     "f-w",
     "f-h",
     "f-px",
+    "f-px-w",
+    "f-px-h",
+    "btn-apply-px-size",
+    "chk-handle-group-scale",
+    "chk-auto-fit-parent",
+    "overlap-note",
     "f-scale",
     "f-caption",
     "f-image",
@@ -328,13 +338,24 @@ function bindUi() {
   els["chk-aspect"].addEventListener("change", () => {
     state.aspectLock = els["chk-aspect"].checked;
   });
+  els["chk-handle-group-scale"].addEventListener("change", () => {
+    state.handleScaleGroup = els["chk-handle-group-scale"].checked;
+  });
+  els["chk-auto-fit-parent"].addEventListener("change", () => {
+    state.autoFitParent = els["chk-auto-fit-parent"].checked;
+    setStatus(
+      state.autoFitParent
+        ? "Parent panels will resize to wrap their children."
+        : "Parent auto-size is off. Resize PanelCats (etc.) yourself."
+    );
+  });
   els["chk-scale-children"].addEventListener("change", () => {
     state.scaleChildren = els["chk-scale-children"].checked;
-    if (state.scaleChildren) {
-      warn(
-        "position_real children already follow their parent size. Scaling stored child values is not how these RFS layouts normally work."
-      );
-    }
+    setStatus(
+      state.scaleChildren
+        ? "Children will stretch when you resize this panel."
+        : "Buttons keep their pixel size when you resize the panel."
+    );
   });
   els["img-preview-mode"].addEventListener("change", () => {
     state.imagePreviewMode = els["img-preview-mode"].value;
@@ -360,6 +381,12 @@ function bindUi() {
   els["f-font"].addEventListener("change", () => editPropField("font"));
   els["f-align"].addEventListener("change", () => editPropField("align"));
   els["f-scale"].addEventListener("change", onScaleField);
+  els["btn-apply-px-size"].addEventListener("click", applyPixelSize);
+  ["f-px-w", "f-px-h"].forEach((id) => {
+    els[id].addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") applyPixelSize();
+    });
+  });
 
   els["btn-scale-up"].addEventListener("click", () => nudgeScale(10));
   els["btn-scale-down"].addEventListener("click", () => nudgeScale(-10));
@@ -877,11 +904,6 @@ function applyZoom() {
 }
 
 function afterSelect() {
-  const w = primaryWidget();
-  if (w && w.type === "ImageBox") {
-    els["chk-aspect"].checked = true;
-    state.aspectLock = true;
-  }
   syncActiveGroupFromSelection();
   redraw();
 }
@@ -954,7 +976,8 @@ function onCanvasDown(ev) {
       startX: p.x,
       startY: p.y,
       startBox: box,
-      snaps: snapshotGeometry(widgets),
+      targetIds: widgets.map((w) => w.id),
+      snaps: snapshotGeometry(geometrySet(widgets)),
       lock: state.aspectLock || ev.shiftKey,
     };
     ev.preventDefault();
@@ -975,7 +998,8 @@ function onCanvasDown(ev) {
       kind: "move",
       startX: p.x,
       startY: p.y,
-      snaps: snapshotGeometry(widgets),
+      targetIds: widgets.map((w) => w.id),
+      snaps: snapshotGeometry(geometrySet(widgets)),
       moved: false,
     };
   }
@@ -1001,7 +1025,9 @@ function onCanvasMove(ev) {
   const dy = p.y - state.drag.startY;
   restoreGeometry(state.byId, state.drag.snaps);
   const { rects } = currentRects();
-  const widgets = state.drag.snaps.map((s) => state.byId.get(s.id)).filter(Boolean);
+  const widgets = (state.drag.targetIds || state.drag.snaps.map((s) => s.id))
+    .map((id) => state.byId.get(id))
+    .filter(Boolean);
   if (state.drag.kind === "move") {
     if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) {
       state.drag.moved = true;
@@ -1023,15 +1049,39 @@ function onCanvasMove(ev) {
     }
   } else if (state.drag.kind === "resize") {
     const lock = state.aspectLock || ev.shiftKey;
-    const raw = resizeBox(state.drag.startBox, state.drag.handle, dx, dy, lock);
-    const toBox = clampToCanvas({
-      x: snapVal(raw.x),
-      y: snapVal(raw.y),
-      w: Math.max(1, snapVal(raw.w)),
-      h: Math.max(1, snapVal(raw.h)),
-    });
-    applyScaledBox(widgets, rects, state.drag.startBox, toBox);
+    if (!state.handleScaleGroup && widgets.length) {
+      const next = resizeEachRects(
+        widgets.map((w) => w.id),
+        rects,
+        state.drag.handle,
+        dx,
+        dy,
+        lock
+      );
+      for (const w of widgets) {
+        const r = rects.get(w.id);
+        const nr = next.get(w.id);
+        if (!r || !nr) continue;
+        writeScreenRect(w, clampToCanvas({
+          x: snapVal(nr.x),
+          y: snapVal(nr.y),
+          w: Math.max(1, snapVal(nr.w)),
+          h: Math.max(1, snapVal(nr.h)),
+        }), r.parentRect);
+      }
+    } else {
+      const raw = resizeBox(state.drag.startBox, state.drag.handle, dx, dy, lock);
+      const toBox = clampToCanvas({
+        x: snapVal(raw.x),
+        y: snapVal(raw.y),
+        w: Math.max(1, snapVal(raw.w)),
+        h: Math.max(1, snapVal(raw.h)),
+      });
+      applyScaledBox(widgets, rects, state.drag.startBox, toBox);
+    }
+    keepChildPixels(widgets, rects);
   }
+  wrapParents(widgets);
   rebuildRectsOnly();
 }
 
@@ -1093,6 +1143,128 @@ function uniqueWidgets(list) {
   return out;
 }
 
+function geometrySet(widgets) {
+  const parents = parentsToFit(widgets);
+  const extra = [];
+  for (const p of parents) extra.push(...(p.children || []));
+  extra.push(...pinSet(widgets));
+  return uniqueWidgets(widgets.concat(parents, extra));
+}
+
+function pinSet(widgets) {
+  if (state.scaleChildren) return [];
+  const skip = new Set(widgets.map((w) => w.id));
+  const out = [];
+  for (const w of widgets) {
+    for (const c of w.children || []) {
+      if (!skip.has(c.id)) out.push(c);
+    }
+  }
+  return uniqueWidgets(out);
+}
+
+function isFillChild(child, parentRect, childRect) {
+  if (!parentRect || !childRect) return false;
+  if (
+    isRelative(child) &&
+    Math.abs(child.x) < 0.02 &&
+    Math.abs(child.y) < 0.02 &&
+    Math.abs(child.w - 1) < 0.04 &&
+    Math.abs(child.h - 1) < 0.04
+  ) {
+    return true;
+  }
+  return (
+    parentRect.w > 1 &&
+    parentRect.h > 1 &&
+    childRect.w / parentRect.w >= 0.94 &&
+    childRect.h / parentRect.h >= 0.94
+  );
+}
+
+function keepChildPixels(parents, rectsBefore) {
+  if (state.scaleChildren || !parents || !parents.length) return;
+  for (const parent of parents) {
+    if (!parent.children || !parent.children.length) continue;
+    const oldParent = rectsBefore.get(parent.id);
+    if (!oldParent || !oldParent.parentRect) continue;
+    const newParent = nativeToScreen(parent, oldParent.parentRect);
+    for (const c of parent.children) {
+      const cr = rectsBefore.get(c.id);
+      if (!cr) continue;
+      if (isFillChild(c, oldParent, cr)) continue;
+      writeScreenRect(c, { x: cr.x, y: cr.y, w: cr.w, h: cr.h }, newParent);
+      applyGeometry(c);
+    }
+  }
+}
+
+function parentsToFit(widgets) {
+  const skip = new Set(widgets.map((w) => w.id));
+  const seen = new Set();
+  const out = [];
+  for (const w of widgets) {
+    const p = w.parent;
+    if (!p || skip.has(p.id) || seen.has(p.id)) continue;
+    seen.add(p.id);
+    out.push(p);
+  }
+  return out;
+}
+
+function shouldAutoFitParent(parent, rects) {
+  if (!parent || !parent.children || !parent.children.length) return false;
+  if (String(parent.name || "").toLowerCase() === "root") return false;
+  const r = rects.get(parent.id);
+  if (!r || !r.parentRect) return true;
+  const pr = r.parentRect;
+  if (pr.w > 1 && pr.h > 1 && r.w / pr.w >= 0.94 && r.h / pr.h >= 0.94) return false;
+  return true;
+}
+
+function wrapParents(widgets) {
+  if (!state.autoFitParent || !widgets || !widgets.length) return;
+  for (const parent of parentsToFit(widgets)) {
+    const { rects } = currentRects();
+    if (!shouldAutoFitParent(parent, rects)) continue;
+    fitParentAroundChildren(parent, rects);
+  }
+}
+
+function fitParentAroundChildren(parent, rects) {
+  const box = boundingBox(
+    parent.children.map((c) => c.id),
+    rects
+  );
+  if (!box) return false;
+  const pr = rects.get(parent.id);
+  if (!pr) return false;
+  const next = {
+    x: box.x,
+    y: box.y,
+    w: Math.max(1, box.w),
+    h: Math.max(1, box.h),
+  };
+  if (
+    Math.abs(next.x - pr.x) < 0.25 &&
+    Math.abs(next.y - pr.y) < 0.25 &&
+    Math.abs(next.w - pr.w) < 0.25 &&
+    Math.abs(next.h - pr.h) < 0.25
+  ) {
+    return false;
+  }
+  writeScreenRect(parent, next, pr.parentRect);
+  applyGeometry(parent);
+  for (const c of parent.children) {
+    const r = rects.get(c.id);
+    if (!r) continue;
+    if (isFillChild(c, pr, r)) continue;
+    writeScreenRect(c, r, next);
+    applyGeometry(c);
+  }
+  return true;
+}
+
 function applyScaledBox(widgets, rects, fromBox, toBox) {
   const next = scaleRectsFromBox(
     widgets.map((w) => w.id),
@@ -1132,10 +1304,21 @@ function commitGeometry(before, after, label) {
 function mutateWidgets(label, fn) {
   const widgets = scaleTargets();
   if (!widgets.length) return;
-  const before = snapshotGeometry(widgets);
+  const { rects } = currentRects();
+  const sizeBefore = new Map(widgets.map((w) => [w.id, { w: w.w, h: w.h }]));
+  const set = geometrySet(widgets);
+  const before = snapshotGeometry(set);
   fn(widgets);
+  keepChildPixels(
+    widgets.filter((w) => {
+      const s = sizeBefore.get(w.id);
+      return s && (w.w !== s.w || w.h !== s.h);
+    }),
+    rects
+  );
   for (const w of widgets) applyGeometry(w);
-  const after = snapshotGeometry(widgets);
+  wrapParents(widgets);
+  const after = snapshotGeometry(set);
   if (sameSnaps(before, after)) return;
   state.history.push({
     label,
@@ -1192,6 +1375,11 @@ function fillProps() {
   els["f-px"].textContent = r
     ? `Preview px: ${Math.round(r.x)}, ${Math.round(r.y)}  ${Math.round(r.w)}×${Math.round(r.h)}   source=${w.posSource}`
     : "";
+  if (els["f-px-w"] && r) {
+    els["f-px-w"].value = String(Math.max(1, Math.round(r.w)));
+    els["f-px-h"].value = String(Math.max(1, Math.round(r.h)));
+  }
+  fillOverlapNote(sel, rects);
   const sx = w.originalW ? (w.w / w.originalW) * 100 : 100;
   const sy = w.originalH ? (w.h / w.originalH) * 100 : 100;
   els["f-scale"].value = formatField((sx + sy) / 2);
@@ -1243,29 +1431,110 @@ function onNumericFields() {
   const width = Number(els["f-w"].value);
   const height = Number(els["f-h"].value);
   if (![x, y, width, height].every(Number.isFinite)) return;
-  const before = snapshotGeometry([w]);
+  const { rects } = currentRects();
+  const sizeChanged = w.w !== width || w.h !== height;
+  const set = geometrySet([w]);
+  const before = snapshotGeometry(set);
   w.x = x;
   w.y = y;
   w.w = width;
   w.h = height;
   w.geomDirty = true;
   applyGeometry(w);
-  const after = snapshotGeometry([w]);
+  if (sizeChanged) keepChildPixels([w], rects);
+  wrapParents([w]);
+  const after = snapshotGeometry(set);
   if (sameSnaps(before, after)) return;
   state.history.push({
     label: "Edit numbers",
     undo: () => {
       restoreGeometry(state.byId, before);
-      applyGeometry(w);
+      before.forEach((s) => {
+        const x = state.byId.get(s.id);
+        if (x) applyGeometry(x);
+      });
       redraw();
     },
     redo: () => {
       restoreGeometry(state.byId, after);
-      applyGeometry(w);
+      after.forEach((s) => {
+        const x = state.byId.get(s.id);
+        if (x) applyGeometry(x);
+      });
       redraw();
     },
   });
   redraw();
+}
+
+function fillOverlapNote(sel, rects) {
+  const note = els["overlap-note"];
+  if (!note) return;
+  if (!state.parsed || !sel.length) {
+    note.classList.add("hidden");
+    note.textContent = "";
+    return;
+  }
+  const names = new Set();
+  for (const w of sel) {
+    for (const other of widgetsOnTopOf(w, rects)) {
+      if (sel.some((s) => s.id === other.id)) continue;
+      names.add(other.name || other.type);
+    }
+  }
+  if (!names.size) {
+    note.classList.add("hidden");
+    note.textContent = "";
+    return;
+  }
+  const list = [...names].slice(0, 8).join(", ");
+  const extra = names.size > 8 ? "…" : "";
+  note.textContent =
+    "Covered in-game by later widgets: " +
+    list +
+    extra +
+    ". Empty slots look see-through here; the game paints them opaque. Bring to front, or resize/move so they do not overlap.";
+  note.classList.remove("hidden");
+}
+
+function widgetsOnTopOf(widget, rects) {
+  const r = rects.get(widget.id);
+  if (!r || !state.parsed) return [];
+  const order = paintOrderList(state.parsed.roots);
+  const idx = order.indexOf(widget);
+  if (idx < 0) return [];
+  const out = [];
+  for (let i = idx + 1; i < order.length; i++) {
+    const other = order[i];
+    if (isOnInactiveTab(other, state.tabs, state.layoutTab, state.tabMap)) continue;
+    if (isXmlHidden(other) && !state.showHidden) continue;
+    const o = rects.get(other.id);
+    if (!o) continue;
+    if (rectsOverlap(r, o)) out.push(other);
+  }
+  return out;
+}
+
+function rectsOverlap(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function applyPixelSize() {
+  const pw = Number(els["f-px-w"].value);
+  const ph = Number(els["f-px-h"].value);
+  if (!Number.isFinite(pw) || !Number.isFinite(ph) || pw < 1 || ph < 1) {
+    setStatus("Resize needs width and height in pixels (1 or more).");
+    return;
+  }
+  const { rects } = currentRects();
+  mutateWidgets("Resize px", (widgets) => {
+    for (const w of widgets) {
+      const r = rects.get(w.id);
+      if (!r) continue;
+      writeScreenRect(w, { x: r.x, y: r.y, w: pw, h: ph }, r.parentRect);
+    }
+  });
+  setStatus("Resized " + selectedWidgets().length + " widget(s) to " + Math.round(pw) + "×" + Math.round(ph) + " px. Scale % is unchanged.");
 }
 
 function onScaleField() {
@@ -1608,14 +1877,15 @@ function onKey(ev) {
   ev.preventDefault();
   const widgets = scaleTargets().filter((w) => !w.locked);
   const { rects } = currentRects();
-  const before = snapshotGeometry(widgets);
+  const before = snapshotGeometry(geometrySet(widgets));
   for (const w of widgets) {
     const r = rects.get(w.id);
     if (!r) continue;
     writeScreenRect(w, clampToCanvas({ x: r.x + dx, y: r.y + dy, w: r.w, h: r.h }), r.parentRect);
     applyGeometry(w);
   }
-  commitGeometry(before, snapshotGeometry(widgets), "Nudge");
+  wrapParents(widgets);
+  commitGeometry(before, snapshotGeometry(geometrySet(widgets)), "Nudge");
 }
 
 function restack(action) {
@@ -3392,6 +3662,7 @@ async function runCommand(cmd, arg) {
           <li><kbd>Ctrl+[</kbd> / <kbd>Ctrl+]</kbd> stack · Shift for ends</li>
           <li><kbd>F5</kbd> Layout preview · <kbd>F11</kbd> Fullscreen · <kbd>Esc</kbd> cancel</li>
           <li>Arrows nudge 1px · Shift+Arrows 10px</li>
+          <li>Drag handles: <strong>resize</strong> that widget (or each, if “Handle drag scales the group” is off). Scale % still grows from imported size.</li>
         </ul>`,
         actions: [{ label: "Close", primary: true }],
       });

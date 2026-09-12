@@ -113,7 +113,7 @@ export const SKIN_STYLE = {
   SecondaryButton: { bg: "#3a434c", border: "1px solid #6a7580", color: "#e6e6e6" },
   InventoryTab: { bg: "#4a3d28", border: "1px solid #8a7348", color: "#f0e6d0" },
   TextBox: { bg: "transparent", border: "1px dashed rgba(255,255,255,0.06)", color: "#f2f2f2" },
-  ImageBox: { bg: "rgba(90,90,90,0.18)", border: "1px solid rgba(255,255,255,0.14)", color: "#ddd" },
+  ImageBox: { bg: "rgba(32,32,32,0.92)", border: "1px solid rgba(255,255,255,0.22)", color: "#ddd" },
   EditBox: { bg: "#111318", border: "1px solid #6b7380", color: "#eee" },
   EditBoxEmpty: { bg: "transparent", border: "1px dashed rgba(255,255,255,0.1)", color: "#eee" },
   ProgressBar: { bg: "#222", border: "1px solid #888", color: "#eee" },
@@ -132,11 +132,25 @@ const SUPPORTED_RENDER = new Set(["Widget", "Button", "TextBox", "EditBox", "Ima
 export function renderWidgets(container, roots, rects, options) {
   container.innerHTML = "";
   const frag = document.createDocumentFragment();
-  paintList(frag, roots, rects, options);
+  const z = { n: 1 };
+  paintList(frag, roots, rects, options, z);
   container.appendChild(frag);
 }
 
-function paintList(parentEl, list, rects, options) {
+/** Parent, then children, then the next sibling — same order MyGUI draws (later = on top). */
+export function paintOrderList(roots) {
+  const out = [];
+  function walk(list) {
+    for (const w of list || []) {
+      out.push(w);
+      walk(w.children);
+    }
+  }
+  walk(roots);
+  return out;
+}
+
+function paintList(parentEl, list, rects, options, z) {
   for (const w of list) {
     const r = rects.get(w.id);
     if (!r) continue;
@@ -147,10 +161,11 @@ function paintList(parentEl, list, rects, options) {
     el.style.top = r.y + "px";
     el.style.width = Math.max(0, r.w) + "px";
     el.style.height = Math.max(0, r.h) + "px";
+    el.style.zIndex = String(z.n++);
     if (isXmlHidden(w) && !options.showHidden) continue;
     if (options.isTabHidden && options.isTabHidden(w)) continue;
     if (!isEditorPainted(w, options)) {
-      if (w.children.length) paintList(parentEl, w.children, rects, options);
+      if (w.children.length) paintList(parentEl, w.children, rects, options, z);
       continue;
     }
     if (w.locked) el.classList.add("is-locked");
@@ -211,7 +226,7 @@ function paintList(parentEl, list, rects, options) {
       el.appendChild(badge);
     }
     parentEl.appendChild(el);
-    if (w.children.length) paintList(parentEl, w.children, rects, options);
+    if (w.children.length) paintList(parentEl, w.children, rects, options, z);
   }
 }
 

@@ -122,9 +122,13 @@ Do not treat the canvas as pixel-perfect until you overlay an in-game screenshot
 - Select, multi-select, select all, overlap cycling (Alt/Ctrl-click or double-click)
 - Align, distribute, lock, hide-in-editor, solo
 - Drag, 8 resize handles, Shift or Lock Aspect Ratio
+- Pixel **W / H** resize (top-left stays) separate from Scale %. Optional: resize each widget instead of scaling the group from its box
+- Auto-size parent to wrap children (MyGUI clips to the parent; the editor does not)
+- Resize a parent without stretching buttons; optional **Stretch children when this panel resizes**
 - Arrow = 1 preview pixel, Shift+Arrow = 10
 - Scale % from **imported** size, Scale Up/Down, Reset, Fit to Parent, center, group scale
-- Stacking: Bring to Front / Forward / Backward / Send to Back (XML sibling order)
+- Stacking: Bring to Front / Forward / Backward / Send to Back (XML sibling order). Canvas paint uses that same order (later siblings on top)
+- Status line under the canvas so it does not cover Hierarchy
 - PNG preview, replace, Save PNG As (does not overwrite unless you choose that path), Reload Assets
 - Reveal layout or image in Windows Explorer
 - Undo / Redo (Ctrl+Z, Ctrl+Y / Ctrl+Shift+Z)
@@ -135,9 +139,13 @@ Do not treat the canvas as pixel-perfect until you overlay an in-game screenshot
 - Screenshot overlay / side-by-side calibration (not exported)
 - Disk watch: if the open layout or PNG folder changes while the editor is running, a banner offers Reload or Keep editor
 
-### Child scaling
+### Child scaling and parent clip
 
-`position_real` children **already** follow parent size (they are fractions). The stored child values do not need to change when the parent is resized. Enable **Also scale child stored values** only if you really want to rewrite children; the editor warns first. Pixel-positioned children do not follow parent size unless you enable that option.
+`position_real` children are fractions of the parent. If you only change the parent box and leave those fractions alone, buttons **stretch in-game**.
+
+- **Stretch children when this panel resizes** off (default): select the panel only, then resize it. Buttons keep their pixel size. Widgets that already fill the parent (`0 0 1 1`, or covering almost the whole panel) still grow with it.
+- That checkbox on: children stretch with the panel (MyGUI’s usual fraction behavior).
+- **Auto-size parent to wrap children** on (default): moving children grows panels such as `PanelCats` so the game does not clip them. The editor still paints children that sit outside the parent; Scrap Mechanic does not.
 
 ### Image display vs export
 

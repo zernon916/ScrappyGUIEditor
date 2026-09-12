@@ -12,6 +12,17 @@ The **`.bat` / Python** download stays on [`main`](https://github.com/zernon916/
 
 The installer does not write into your Scrap Mechanic mod folder. Layouts stay where you opened them.
 
+## What’s new in 1.0.1
+
+Editor canvas and properties (same changes on [`main`](https://github.com/zernon916/ScrappyGUIEditor/tree/main) for the `.bat` build):
+
+- **Paint order matches the game.** Later XML siblings draw on top. Empty `ImageBox` cells look solid so you can see coverage, and the properties panel warns when a later widget covers the selection.
+- **Resize is not Scale %.** **W px / H px** plus **Apply size to selection** changes width and height with the top-left fixed. Scale % still multiplies the size from when you opened the file.
+- **Resize a panel without stretching its buttons.** Select only the panel (for example `PanelCats`). Leave **Stretch children when this panel resizes** off. Category buttons keep their pixel size; art that already fills the panel (`0 0 1 1`) still grows with it. Turn that checkbox on if you *want* children to stretch.
+- **Auto-size parent to wrap children** (on by default) grows panels such as `PanelCats` when you move children, so MyGUI does not clip them in-game. The editor paints children even outside the parent; the game does not.
+- **Handle drag scales the group** (on by default) scales the whole selection from its box. Turn it off to resize each selected widget’s own box.
+- The **status bar** sits under the canvas only, so it no longer covers the bottom of Hierarchy.
+
 ## How to use
 
 1. Launch **Scrappy GUI Editor**.
@@ -49,7 +60,7 @@ Build a local installer without publishing:
 npm run dist
 ```
 
-That writes `dist\ScrappyGUIEditor-Setup-1.0.0.exe`. Do not copy it into a mod folder.
+That writes `dist\ScrappyGUIEditor-Setup-1.0.1.exe`. Do not copy it into a mod folder.
 
 ## Shipping a new EXE
 

@@ -229,4 +229,15 @@ export function scaleRectsFromBox(ids, rects, fromBox, toBox) {
   return result;
 }
 
+/** Same handle delta on each widget’s own box. Positions stay except the dragged edge. */
+export function resizeEachRects(ids, rects, handle, dx, dy, lockAspect) {
+  const result = new Map();
+  for (const id of ids) {
+    const r = rects.get(id);
+    if (!r) continue;
+    result.set(id, resizeBox(r, handle, dx, dy, lockAspect));
+  }
+  return result;
+}
+
 export { HANDLES };
